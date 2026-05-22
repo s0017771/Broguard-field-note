@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
+<link rel="manifest" href="manifest.json">
 <title>현장조사노트</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
@@ -66,13 +67,28 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
 /* 라벨 */
 .label-item {
   position: absolute; pointer-events: auto;
-  background: rgba(233, 69, 96, 0.85); color: white;
-  padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 700;
+  background: rgba(233, 69, 96, 0.9); color: white;
+  padding: 3px 8px; border-radius: 4px; font-size: 12px;
   cursor: move; white-space: nowrap;
   border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   transform-origin: center center;
-  line-height: 1.3;
+  line-height: 1.25;
 }
+.label-item .label-line1 { font-weight: 700; }
+.label-item .label-line2 { font-size: 11px; font-weight: 600; opacity: 0.95; }
+/* 손상 위치 점 */
+.label-dot {
+  position: absolute; width: 9px; height: 9px; border-radius: 50%;
+  background: #e94560; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,0.5);
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+.label-dot.scene-dot { background: #0f3460; }
+.label-dot.photo-dot { background: #FFD700; }
+/* 지시선 SVG */
+#leader-svg { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+.leader-line { stroke: #e94560; stroke-width: 1.5; }
+.leader-line.scene-leader { stroke: #0f3460; }
+.leader-line.photo-leader { stroke: #FFC107; }
 .label-item .delete-btn {
   display: none; position: absolute; top: -10px; right: -10px;
   width: 22px; height: 22px; background: #333; color: white;
@@ -171,6 +187,15 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
   line-height:18px; text-align:center; cursor:pointer;
 }
 .label-item.editing .edit-btn { display:block; }
+
+/* 전경 선택 모달 */
+.scene-type-tabs { display:flex; gap:8px; margin:10px 0; }
+.scene-tab { flex:1; padding:9px; border:1px solid #ccc; border-radius:6px; background:#f0f0f0; cursor:pointer; font-size:14px; font-weight:600; }
+.scene-tab.active { background:#0f3460; color:#fff; border-color:#0f3460; }
+.scene-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.scene-grid button { padding:13px 8px; border:none; border-radius:8px; background:#0f3460; color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
+.scene-grid button:active { transform:scale(0.96); }
+.label-item.scene-label { background:rgba(15,52,96,0.92); color:#fff; border-color:#fff; }
 </style>
 </head>
 <body>
@@ -179,7 +204,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
 <div id="toolbar">
   <img id="brand-logo" alt="브로가드" style="height:32px;width:auto;margin-right:4px;background:#fff;border-radius:6px;padding:2px;">
   <span style="color:#fff;font-weight:700;font-size:13px;margin-right:4px;letter-spacing:0.3px">현장조사노트</span>
+  <button id="btn-rotate" title="화면 회전 고정">📲 세로</button>
   <button id="btn-open" title="PDF 열기">📂</button>
+  <button id="btn-new" title="새 문서 (빈 A4)">📄</button>
+  <button id="btn-add-page" title="페이지 추가 (새 문서)" style="display:none">➕</button>
   <div class="separator"></div>
   <button id="btn-hand" class="active" title="손 모드">✋</button>
   <button id="btn-pen" title="펜 모드">✏️</button>
@@ -194,7 +222,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
   <span id="page-info">-</span>
   <button id="btn-next" title="다음 페이지">▶</button>
   <div style="flex:1"></div>
-  <button id="btn-save" title="PNG 저장">💾</button>
+  <button id="btn-save" title="저장">💾</button>
+  <button id="btn-install" title="홈 화면에 추가" style="display:none;background:#00c853;border-color:#00c853">⬇️ 설치</button>
   <button id="btn-fullscreen" title="전체화면">⛶</button>
 </div>
 
@@ -210,6 +239,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
   <button class="label-btn" data-label="박락">박락</button>
   <button class="label-btn" data-label="세굴">세굴</button>
   <button class="label-btn" data-label="침하">침하</button>
+  <button class="label-btn" id="scene-btn" style="background:#0f3460">🏞️ 전경</button>
   <button class="label-btn" id="photo-label-btn">📷 사진</button>
   <button class="label-btn" id="add-label-btn">+ 추가</button>
 </div>
@@ -246,6 +276,22 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
 
 <!-- 로딩 -->
 <div id="loading"><div class="spinner"></div></div>
+
+<!-- 전경 종류 선택 모달 -->
+<div id="scene-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>🏞️ 전경 사진 종류 선택</h3>
+    <div class="scene-type-tabs">
+      <button id="scene-tab-bridge" class="scene-tab active">교량</button>
+      <button id="scene-tab-tunnel" class="scene-tab">터널</button>
+    </div>
+    <div id="scene-options" class="scene-grid"></div>
+    <p style="font-size:12px;color:#888;margin-top:10px">선택 후 도면을 누르고 촬영 방향으로 손가락을 미세요 (스와이프)</p>
+    <div class="modal-btns">
+      <button id="scene-cancel">취소</button>
+    </div>
+  </div>
+</div>
 
 <!-- 사진 매핑 모달 -->
 <div id="photo-modal" class="modal-overlay">
@@ -399,12 +445,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     photos: {},
     photoCounter: 0,
     photoDate: '',
+    // 문서 모드: 'pdf' | 'blank'
+    docMode: 'pdf',
   };
+
+  // 빈 A4 가로 캔버스 크기 (이미 렌더 스케일 반영된 픽셀)
+  const BLANK_W = 2000, BLANK_H = 1414;
+  function hasDoc() { return !!state.pdfDoc || state.docMode === 'blank'; }
 
   // === 자동저장/복원 ===
   const SAVE_KEY = 'inspection_autosave';
   function autoSave() {
-    if (!state.pdfDoc) return;
+    if (!hasDoc()) return;
     try {
       const data = {
         pdfFileName: state.pdfFileName,
@@ -466,6 +518,40 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   $('btn-open').addEventListener('click', openFileDialog);
   $('btn-open2').addEventListener('click', openFileDialog);
 
+  // === 새 문서 (빈 A4 가로) ===
+  $('btn-new').onclick = async () => {
+    if (hasDoc()) {
+      if (!confirm('현재 작업을 닫고 새 문서를 시작할까요?\n(저장하지 않은 내용은 사라집니다)')) return;
+    }
+    state.docMode = 'blank';
+    state.pdfDoc = null;
+    state.pdfArrayBuffer = null;
+    state.pdfFileName = '새문서_' + getTodayStr();
+    state.pdfFileSize = 0;
+    state.totalPages = 1;
+    state.currentPage = 1;
+    state.pageData = {};
+    state.photos = {};
+    $('empty-state').style.display = 'none';
+    $('minimap').style.display = 'block';
+    $('btn-add-page').style.display = '';
+    await renderPage(1);
+    fitToScreen();
+    setMode('pen');
+    showModeIndicator('📄 새 문서 — 펜으로 도면을 그려보세요', 2500);
+  };
+
+  // === 페이지 추가 (새 문서 전용) ===
+  $('btn-add-page').onclick = async () => {
+    if (state.docMode !== 'blank') return;
+    state.totalPages++;
+    state.currentPage = state.totalPages;
+    await renderPage(state.currentPage);
+    fitToScreen();
+    showModeIndicator('페이지 ' + state.currentPage + ' 추가됨');
+    autoSave();
+  };
+
   fileInput.onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -474,6 +560,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       const arrayBuffer = await file.arrayBuffer();
       state.pdfArrayBuffer = arrayBuffer.slice(0);
       state.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      state.docMode = 'pdf';
       state.totalPages = state.pdfDoc.numPages;
       state.pdfFileName = file.name;
       state.pdfFileSize = file.size;
@@ -482,6 +569,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (!restored) state.pageData = {};
       $('empty-state').style.display = 'none';
       $('minimap').style.display = 'block';
+      $('btn-add-page').style.display = 'none';
       await renderPage(state.currentPage);
       fitToScreen();
     } catch (err) {
@@ -494,7 +582,28 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // === 페이지 렌더링 ===
   const PDF_RENDER_SCALE = 2; // 고해상도 렌더링
 
+  function renderBlankPage(num) {
+    state.pdfPageWidth = BLANK_W;
+    state.pdfPageHeight = BLANK_H;
+    pdfCanvas.width = BLANK_W;
+    pdfCanvas.height = BLANK_H;
+    drawCanvas.width = BLANK_W;
+    drawCanvas.height = BLANK_H;
+    labelLayer.style.width = BLANK_W + 'px';
+    labelLayer.style.height = BLANK_H + 'px';
+    pdfCtx.fillStyle = '#ffffff';
+    pdfCtx.fillRect(0, 0, BLANK_W, BLANK_H);
+    if (!state.pageData[num]) {
+      state.pageData[num] = { labels: [], drawPaths: [] };
+    }
+    restoreDrawing(num);
+    restoreLabels(num);
+    updatePageInfo();
+    renderMinimap();
+  }
+
   async function renderPage(num) {
+    if (state.docMode === 'blank') { renderBlankPage(num); return; }
     if (!state.pdfDoc) return;
     const page = await state.pdfDoc.getPage(num);
     const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
@@ -908,6 +1017,76 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return body;
   }
 
+  // === 2줄 라벨 텍스트 ===
+  function photoNum(serial){ return serial ? serial.split('-').pop() : ''; }
+
+  function buildDamageLines(damageType, dims, photoSerial){
+    const fmt = getDamageFormat(damageType);
+    let line1 = damageType;
+    if (photoSerial) line1 += ' 📷' + photoNum(photoSerial);
+    let line2 = '';
+    if (dims) {
+      if (fmt === 'crack') {
+        line2 = (dims.width||'-') + 'mm / ' + (dims.length||'-') + 'mm';
+      } else if (fmt === 'mesh') {
+        line2 = (dims.width||'-') + 'mm / ' + (dims.w||'-') + '×' + (dims.h||'-') + 'mm';
+      } else {
+        line2 = (dims.w||'-') + '×' + (dims.h||'-') + 'mm';
+      }
+    }
+    return { line1, line2 };
+  }
+  function buildSceneLines(sceneType, direction, photoSerial){
+    let line1 = sceneType + (direction ? ' ' + direction : '');
+    let line2 = photoSerial ? '📷 ' + photoNum(photoSerial) : '';
+    return { line1, line2 };
+  }
+  function computeLines(labelData){
+    if (labelData.type === 'damage') {
+      return buildDamageLines(labelData.damageType, labelData.dims, labelData.photoSerial);
+    } else if (labelData.type === 'scene') {
+      return buildSceneLines(labelData.sceneType, labelData.direction, labelData.photoSerial);
+    }
+    return { line1: labelData.text || '', line2: '' };
+  }
+
+  // === 지시선 SVG ===
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function ensureLeaderSvg(){
+    let svg = $('leader-svg');
+    if (!svg) {
+      svg = document.createElementNS(SVGNS, 'svg');
+      svg.id = 'leader-svg';
+      labelLayer.appendChild(svg);
+    }
+    svg.setAttribute('width', pdfCanvas.width);
+    svg.setAttribute('height', pdfCanvas.height);
+    return svg;
+  }
+  function updateLeaderLine(labelData){
+    const line = labelLayer.querySelector('line[data-line-for="' + labelData.id + '"]');
+    if (!line) return;
+    const el = labelLayer.querySelector('.label-item[data-id="' + labelData.id + '"]');
+    let tx = labelData.lx, ty = labelData.ly;
+    if (el) { tx = labelData.lx + el.offsetWidth / 2; ty = labelData.ly + el.offsetHeight / 2; }
+    line.setAttribute('x1', labelData.px);
+    line.setAttribute('y1', labelData.py);
+    line.setAttribute('x2', tx);
+    line.setAttribute('y2', ty);
+  }
+  // 구버전 라벨 호환 (x,y만 있던 데이터 → px,py + lx,ly)
+  function migrateLabel(l){
+    if (l.px === undefined || l.px === null) {
+      l.px = l.x; l.py = l.y;
+      l.lx = (l.x || 0) + 44;
+      l.ly = Math.max(0, (l.y || 0) - 56);
+    }
+    if (l.line1 === undefined) {
+      const o = computeLines(l);
+      l.line1 = o.line1; l.line2 = o.line2;
+    }
+  }
+
   function openDamageModal(damageType, initial, onSave){
     const fmt = getDamageFormat(damageType);
     const fieldsEl = $('damage-fields');
@@ -977,6 +1156,62 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     showModeIndicator('도면을 탭하여 "' + photoText + '" 배치');
   };
 
+  // === 전경(全景) 라벨 ===
+  const SCENE_TYPES = {
+    bridge: ['교량전경','교량 측면전경','포장전경','바닥판 전경','교대전경','교각전경'],
+    tunnel: ['터널전경','갱문전경','라이닝 전경','기초콘크리트 전경','포장전경','난간전경'],
+  };
+  const DIR8 = ['→','↘','↓','↙','←','↖','↑','↗'];
+  function angleToDir8(dx, dy) {
+    const deg = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+    return DIR8[Math.round(deg / 45) % 8];
+  }
+  function sceneText(sceneType, direction, photoSerial) {
+    let t = sceneType + (direction ? ' ' + direction : '');
+    if (photoSerial) t += ' 📷' + photoSerial.split('-').pop();
+    return t;
+  }
+
+  let selectedSceneType = null;
+  let sceneStructure = 'bridge';
+
+  function renderSceneOptions() {
+    const grid = $('scene-options');
+    grid.innerHTML = '';
+    SCENE_TYPES[sceneStructure].forEach(name => {
+      const b = document.createElement('button');
+      b.textContent = name;
+      b.onclick = () => {
+        selectedSceneType = name;
+        $('scene-modal').classList.remove('show');
+        document.querySelectorAll('.label-btn').forEach(x => x.classList.remove('selected'));
+        $('scene-btn').classList.add('selected');
+        selectedLabelText = null;
+        photoMode = false;
+        if (state.mode !== 'label') setMode('label');
+        showModeIndicator('🏞️ ' + name + ' — 도면을 누르고 촬영 방향으로 스와이프', 4000);
+      };
+      grid.appendChild(b);
+    });
+  }
+  $('scene-tab-bridge').onclick = () => {
+    sceneStructure = 'bridge';
+    $('scene-tab-bridge').classList.add('active');
+    $('scene-tab-tunnel').classList.remove('active');
+    renderSceneOptions();
+  };
+  $('scene-tab-tunnel').onclick = () => {
+    sceneStructure = 'tunnel';
+    $('scene-tab-tunnel').classList.add('active');
+    $('scene-tab-bridge').classList.remove('active');
+    renderSceneOptions();
+  };
+  $('scene-cancel').onclick = () => $('scene-modal').classList.remove('show');
+  $('scene-btn').onclick = () => {
+    renderSceneOptions();
+    $('scene-modal').classList.add('show');
+  };
+
   // 커스텀 라벨 추가
   $('add-label-btn').onclick = () => {
     const text = prompt('추가할 라벨 이름:');
@@ -995,19 +1230,28 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   };
 
   // 라벨 배치 (라벨 레이어 클릭)
+  let scenePending = null;
   labelLayer.addEventListener('pointerdown', (e) => {
     if (state.mode !== 'label') return;
-    if (e.target.classList.contains('label-item') || e.target.classList.contains('delete-btn') || e.target.classList.contains('edit-btn')) return;
+    if (e.target.closest('.label-item') || e.target.classList.contains('delete-btn') || e.target.classList.contains('edit-btn')) return;
+    const rect = pdfCanvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / (rect.width / pdfCanvas.width);
+    const y = (e.clientY - rect.top) / (rect.height / pdfCanvas.height);
+
+    // 전경 배치: 클릭 + 스와이프로 방향 지정
+    if (selectedSceneType) {
+      e.preventDefault();
+      scenePending = { sceneType: selectedSceneType, x, y, scX: e.clientX, scY: e.clientY };
+      return;
+    }
+
     if (!selectedLabelText && !photoMode) {
       showModeIndicator('라벨을 먼저 선택하세요');
       return;
     }
     e.preventDefault();
-    const rect = pdfCanvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / (rect.width / pdfCanvas.width);
-    const y = (e.clientY - rect.top) / (rect.height / pdfCanvas.height);
     if (photoMode && photoText) {
-      addLabel({ text: photoText, x, y, type:'photo' });
+      addLabel({ type:'photo', px:x, py:y, text: photoText });
       photoMode = false;
       photoText = null;
       $('photo-label-btn').classList.remove('selected');
@@ -1015,16 +1259,37 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       // 손상 라벨: 모달 띄워 물량 입력
       const damageType = selectedLabelText;
       openDamageModal(damageType, null, ({dims, memo, photoSerial}) => {
-        const text = buildLabelText(damageType, dims, photoSerial);
-        addLabel({ text, x, y, type:'damage', damageType, dims, memo, photoSerial });
+        addLabel({ type:'damage', px:x, py:y, damageType, dims, memo, photoSerial });
       });
     }
   });
+
+  // 전경 스와이프 종료 → 방향 계산 후 배치
+  labelLayer.addEventListener('pointerup', (e) => {
+    if (!scenePending) return;
+    const dx = e.clientX - scenePending.scX;
+    const dy = e.clientY - scenePending.scY;
+    let direction = '';
+    if (Math.hypot(dx, dy) > 18) direction = angleToDir8(dx, dy);
+    const sp = scenePending;
+    scenePending = null;
+    addLabel({ type:'scene', px: sp.x, py: sp.y, sceneType: sp.sceneType, direction, photoSerial: null });
+    selectedSceneType = null;
+    $('scene-btn').classList.remove('selected');
+    showModeIndicator(direction ? '🏞️ ' + sp.sceneType + ' ' + direction : '🏞️ ' + sp.sceneType + ' (방향 미지정)');
+  });
+  labelLayer.addEventListener('pointercancel', () => { scenePending = null; });
 
   function addLabel(labelInit) {
     const pd = state.pageData[state.currentPage];
     const id = Date.now() + Math.random();
     const labelData = Object.assign({ id, type:'default' }, labelInit);
+    if (labelData.lx === undefined) {
+      labelData.lx = (labelData.px || 0) + 44;
+      labelData.ly = Math.max(0, (labelData.py || 0) - 56);
+    }
+    const o = computeLines(labelData);
+    labelData.line1 = o.line1; labelData.line2 = o.line2;
     pd.labels.push(labelData);
     createLabelElement(labelData);
     renderMinimap();
@@ -1033,41 +1298,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   function updateLabel(labelData, patch) {
     Object.assign(labelData, patch);
-    labelData.text = buildLabelText(labelData.damageType, labelData.dims, labelData.photoSerial);
-    // DOM 갱신
-    const el = labelLayer.querySelector(`[data-id="${labelData.id}"]`);
-    if (el) {
-      // textContent를 바꾸면 자식 버튼이 날아가므로 첫 텍스트 노드만 교체
-      const delBtn = el.querySelector('.delete-btn');
-      const editBtn = el.querySelector('.edit-btn');
-      el.textContent = labelData.text;
-      if (editBtn) el.appendChild(editBtn);
-      if (delBtn) el.appendChild(delBtn);
-    }
+    const o = computeLines(labelData);
+    labelData.line1 = o.line1; labelData.line2 = o.line2;
+    const el = labelLayer.querySelector('.label-item[data-id="' + labelData.id + '"]');
+    if (el) renderLabelContent(el, labelData);
+    updateLeaderLine(labelData);
     renderMinimap();
     autoSave();
   }
 
-  function createLabelElement(labelData) {
-    const el = document.createElement('div');
-    el.className = 'label-item' + (labelData.type === 'photo' ? ' photo-label' : '');
-    el.textContent = labelData.text;
-    el.dataset.id = labelData.id;
-    el.style.left = labelData.x + 'px';
-    el.style.top = labelData.y + 'px';
-
+  function renderLabelContent(el, labelData) {
+    el.innerHTML = '';
+    const l1 = document.createElement('div');
+    l1.className = 'label-line1';
+    l1.textContent = labelData.line1 || '';
+    el.appendChild(l1);
+    if (labelData.line2) {
+      const l2 = document.createElement('div');
+      l2.className = 'label-line2';
+      l2.textContent = labelData.line2;
+      el.appendChild(l2);
+    }
     // 삭제 버튼
     const delBtn = document.createElement('div');
     delBtn.className = 'delete-btn';
     delBtn.textContent = '✕';
-    delBtn.onclick = (e) => {
-      e.stopPropagation();
-      removeLabel(labelData.id);
-      el.remove();
-      renderMinimap();
-    };
+    delBtn.onclick = (e) => { e.stopPropagation(); removeLabel(labelData.id); };
     el.appendChild(delBtn);
-
     // 편집 버튼 (손상 라벨만)
     if (labelData.type === 'damage') {
       const editBtn = document.createElement('div');
@@ -1075,64 +1332,95 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       editBtn.textContent = '✏';
       editBtn.onclick = (e) => {
         e.stopPropagation();
-        openDamageModal(labelData.damageType, labelData, (patch) => {
-          updateLabel(labelData, patch);
-        });
+        openDamageModal(labelData.damageType, labelData, (patch) => updateLabel(labelData, patch));
       };
       el.appendChild(editBtn);
     }
+  }
 
-    // 탭으로 편집 모드 토글
+  function createLabelElement(labelData) {
+    const svg = ensureLeaderSvg();
+    // 지시선
+    const line = document.createElementNS(SVGNS, 'line');
+    line.setAttribute('class', 'leader-line'
+      + (labelData.type === 'scene' ? ' scene-leader' : '')
+      + (labelData.type === 'photo' ? ' photo-leader' : ''));
+    line.setAttribute('data-line-for', labelData.id);
+    svg.appendChild(line);
+    // 손상 위치 점
+    const dot = document.createElement('div');
+    dot.className = 'label-dot'
+      + (labelData.type === 'scene' ? ' scene-dot' : '')
+      + (labelData.type === 'photo' ? ' photo-dot' : '');
+    dot.setAttribute('data-dot-for', labelData.id);
+    dot.style.left = labelData.px + 'px';
+    dot.style.top = labelData.py + 'px';
+    labelLayer.appendChild(dot);
+    // 라벨 박스
+    const el = document.createElement('div');
+    el.className = 'label-item'
+      + (labelData.type === 'photo' ? ' photo-label' : '')
+      + (labelData.type === 'scene' ? ' scene-label' : '');
+    el.dataset.id = labelData.id;
+    el.style.left = labelData.lx + 'px';
+    el.style.top = labelData.ly + 'px';
+    renderLabelContent(el, labelData);
+
+    // 탭(편집모드 토글) + 드래그
     el.addEventListener('pointerdown', (e) => {
-      if (e.target === delBtn || e.target.classList.contains('edit-btn')) return;
+      if (e.target.classList.contains('delete-btn') || e.target.classList.contains('edit-btn')) return;
       e.stopPropagation();
-
-      // 편집 모드 토글
       const wasEditing = el.classList.contains('editing');
       labelLayer.querySelectorAll('.label-item').forEach(l => l.classList.remove('editing'));
       if (!wasEditing) el.classList.add('editing');
 
-      // 드래그 시작
       let dragging = false;
       let startX = e.clientX, startY = e.clientY;
       const origLeft = parseFloat(el.style.left);
       const origTop = parseFloat(el.style.top);
-
       const onMove = (ev) => {
         const dx = (ev.clientX - startX) / state.scale;
         const dy = (ev.clientY - startY) / state.scale;
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragging = true;
         el.style.left = (origLeft + dx) + 'px';
         el.style.top = (origTop + dy) + 'px';
+        labelData.lx = origLeft + dx;
+        labelData.ly = origTop + dy;
+        updateLeaderLine(labelData);
       };
       const onUp = () => {
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
-        if (dragging) {
-          labelData.x = parseFloat(el.style.left);
-          labelData.y = parseFloat(el.style.top);
-          renderMinimap();
-        }
+        if (dragging) { renderMinimap(); autoSave(); }
       };
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
     });
 
     labelLayer.appendChild(el);
+    updateLeaderLine(labelData);
     return el;
   }
 
   function removeLabel(id) {
     const pd = state.pageData[state.currentPage];
-    pd.labels = pd.labels.filter(l => l.id !== id);
+    if (pd) pd.labels = pd.labels.filter(l => l.id !== id);
+    const el = labelLayer.querySelector('.label-item[data-id="' + id + '"]');
+    if (el) el.remove();
+    const dot = labelLayer.querySelector('.label-dot[data-dot-for="' + id + '"]');
+    if (dot) dot.remove();
+    const line = labelLayer.querySelector('line[data-line-for="' + id + '"]');
+    if (line) line.remove();
+    renderMinimap();
     autoSave();
   }
 
   function restoreLabels(pageNum) {
     labelLayer.innerHTML = '';
+    ensureLeaderSvg();
     const pd = state.pageData[pageNum];
     if (!pd) return;
-    pd.labels.forEach(labelData => createLabelElement(labelData));
+    pd.labels.forEach(labelData => { migrateLabel(labelData); createLabelElement(labelData); });
   }
 
   function restoreDrawing(pageNum) {
@@ -1167,7 +1455,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   // === 미니맵 ===
   function renderMinimap() {
-    if (!state.pdfDoc) return;
+    if (!hasDoc()) return;
     const mw = 120, mh = 160;
     minimapCanvas.width = mw;
     minimapCanvas.height = mh;
@@ -1185,7 +1473,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   function updateMinimapViewport() {
-    if (!state.pdfDoc) return;
+    if (!hasDoc()) return;
     const mw = 120, mh = 160;
     const sx = mw / pdfCanvas.width;
     const sy = mh / pdfCanvas.height;
@@ -1229,6 +1517,61 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     $('btn-fullscreen').style.background = isFS ? '#e94560' : '';
   }
 
+  // === 화면 회전 고정 ===
+  // 기본 세로(portrait), 누르면 가로(landscape), 다시 누르면 세로
+  let orientationMode = 'portrait';
+  async function applyOrientationLock(mode) {
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        await screen.orientation.lock(mode);
+        return true;
+      }
+    } catch (e) { /* 잠금 미지원/미설치 */ }
+    return false;
+  }
+  $('btn-rotate').onclick = async () => {
+    orientationMode = (orientationMode === 'portrait') ? 'landscape' : 'portrait';
+    const ok = await applyOrientationLock(orientationMode);
+    const isPortrait = orientationMode === 'portrait';
+    $('btn-rotate').textContent = isPortrait ? '📲 세로' : '📲 가로';
+    $('btn-rotate').style.background = isPortrait ? '' : '#e94560';
+    if (ok) {
+      showModeIndicator(isPortrait ? '세로 모드 고정' : '가로 모드 고정');
+    } else {
+      showModeIndicator('회전 고정은 "홈 화면에 추가"로 설치 후 동작합니다', 3000);
+    }
+  };
+  // 시작 시 세로 고정 시도
+  applyOrientationLock('portrait');
+
+  // === 홈 화면에 추가 (PWA 설치) ===
+  let deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    $('btn-install').style.display = '';
+  });
+  $('btn-install').onclick = async () => {
+    if (!deferredInstallPrompt) {
+      alert('설치 방법:\n크롬 메뉴(⋮) → "앱 설치" 또는 "홈 화면에 추가"\n\n※ 이 버튼은 배포된 https 주소에서 자동으로 활성화됩니다.');
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    try { await deferredInstallPrompt.userChoice; } catch (e) {}
+    deferredInstallPrompt = null;
+    $('btn-install').style.display = 'none';
+  };
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    $('btn-install').style.display = 'none';
+    showModeIndicator('홈 화면에 설치되었습니다');
+  });
+
+  // 서비스워커 등록 (배포 환경에서만 동작)
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
   // === 도형인식 토글 ===
   $('btn-shape').onclick = () => {
     state.shapeRecognition = !state.shapeRecognition;
@@ -1263,11 +1606,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     sel.innerHTML = '<option value="">— 선택 —</option>';
     const pd = state.pageData[state.currentPage];
     if (pd) {
-      pd.labels.filter(l => l.type === 'damage').forEach(l => {
+      pd.labels.filter(l => l.type === 'damage' || l.type === 'scene').forEach(l => {
         const opt = document.createElement('option');
         opt.value = l.id;
         const sym = l.photoSerial ? ' (이미 ' + l.photoSerial.split('-').pop() + ')' : '';
-        opt.textContent = l.text + sym;
+        const labelText = (l.line1 || l.text || '') + (l.line2 ? ' ' + l.line2 : '');
+        opt.textContent = labelText + sym;
         sel.appendChild(opt);
       });
     }
@@ -1282,8 +1626,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (!id) { showModeIndicator('연결할 손상 라벨을 선택하세요'); return; }
       const target = pd.labels.find(l => String(l.id) === String(id));
       if (target) {
+        if (target.photoSerial && target.photoSerial !== serial) {
+          if (!confirm('이 라벨에는 이미 사진(' + target.photoSerial + ')이 연결돼 있습니다.\n새 사진으로 덮어쓸까요?')) return;
+        }
         updateLabel(target, { photoSerial: serial });
-        showModeIndicator('📷 ' + serial + ' → ' + target.damageType + ' 연결됨', 2500);
+        const nm = target.damageType || target.sceneType || '라벨';
+        showModeIndicator('📷 ' + serial + ' → ' + nm + ' 연결됨', 2500);
       }
       cleanup();
     };
@@ -1301,7 +1649,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   $('btn-camera').onclick = () => {
-    if (!state.pdfDoc) { showModeIndicator('PDF를 먼저 열어주세요'); return; }
+    if (!hasDoc()) { showModeIndicator('PDF를 열거나 새 문서를 시작하세요'); return; }
     cameraInput.value = '';
     cameraInput.click();
   };
@@ -1326,9 +1674,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       const serial = getNextPhotoSerial();
       state.photos[serial] = dataUrl;
 
-      // 즉시 일련번호 이름으로 사진 저장
-      const photoBlob = await (await fetch(dataUrl)).blob();
-      downloadBlob(photoBlob, serial + '.jpg');
+      // 사진은 메모리에 보관 → ZIP 저장 시 photos/ 폴더에 일괄 포함
+      // (개별 다운로드 안 함 — 매번 다운로드 확인창 방지)
 
       // 사진 매핑 모달 띄움
       openPhotoModal(serial);
@@ -1341,7 +1688,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   // === PNG/PDF 저장 ===
   $('btn-save').onclick = async () => {
-    if (!state.pdfDoc) return;
+    if (!hasDoc()) return;
     const ans = prompt('저장 형식을 선택하세요:\n  1 = ZIP 묶음 (도면+사진+JSON, 내업용 권장)\n  2 = PDF (도면만)\n  3 = PNG (현재 페이지만)', '1');
     if (!ans) return;
     $('loading').classList.add('show');
@@ -1364,13 +1711,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   // === ZIP 묶음 저장 (도면 1장 = 1 ZIP) ===
   async function renderPageOverlayCanvas(pageNum) {
-    const pdfPage = await state.pdfDoc.getPage(pageNum);
-    const viewport = pdfPage.getViewport({ scale: PDF_RENDER_SCALE });
     const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
     const ctx = canvas.getContext('2d');
-    await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+    if (state.docMode === 'blank') {
+      canvas.width = BLANK_W;
+      canvas.height = BLANK_H;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, BLANK_W, BLANK_H);
+    } else {
+      const pdfPage = await state.pdfDoc.getPage(pageNum);
+      const viewport = pdfPage.getViewport({ scale: PDF_RENDER_SCALE });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+    }
     const pd = state.pageData[pageNum];
     if (pd) {
       pd.drawPaths.forEach(path => drawOnePath(ctx, path));
@@ -1418,7 +1772,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const damages = pd.labels.filter(l => l.type === 'damage').map((l, i) => ({
       번호: i + 1,
       종류: l.damageType,
-      위치: { x: Math.round(l.x), y: Math.round(l.y) },
+      위치: { x: Math.round(l.px != null ? l.px : l.x || 0), y: Math.round(l.py != null ? l.py : l.y || 0) },
       균열폭_mm: l.dims && l.dims.width ? Number(l.dims.width) : null,
       길이_mm: l.dims && l.dims.length ? Number(l.dims.length) : null,
       가로_mm: l.dims && l.dims.w ? Number(l.dims.w) : null,
@@ -1426,19 +1780,29 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       면적_mm2: (l.dims && l.dims.w && l.dims.h) ? Number(l.dims.w) * Number(l.dims.h) : null,
       메모: l.memo || '',
       사진: l.photoSerial || null,
-      표시텍스트: l.text,
+      표시텍스트: (l.line1 || '') + (l.line2 ? ' ' + l.line2 : ''),
+    }));
+    const scenes = pd.labels.filter(l => l.type === 'scene').map((l, i) => ({
+      번호: i + 1,
+      종류: l.sceneType,
+      방향: l.direction || '',
+      위치: { x: Math.round(l.px != null ? l.px : l.x || 0), y: Math.round(l.py != null ? l.py : l.y || 0) },
+      사진: l.photoSerial || null,
+      표시텍스트: (l.line1 || '') + (l.line2 ? ' ' + l.line2 : ''),
     }));
     const photoLabels = pd.labels.filter(l => l.type === 'photo').map(l => ({
-      위치: { x: Math.round(l.x), y: Math.round(l.y) },
-      표시: l.text,
+      위치: { x: Math.round(l.px != null ? l.px : l.x || 0), y: Math.round(l.py != null ? l.py : l.y || 0) },
+      표시: l.line1 || l.text || '',
     }));
     const meta = {
       도면파일: state.pdfFileName,
       페이지: pn,
       전체페이지수: state.totalPages,
       조사일: today,
+      문서모드: state.docMode,
       도면크기: { width: state.pdfPageWidth, height: state.pdfPageHeight, scale: PDF_RENDER_SCALE },
       손상: damages,
+      전경: scenes,
       사진라벨: photoLabels,
     };
     zip.file('data.json', JSON.stringify(meta, null, 2));
@@ -1446,8 +1810,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const lines = [];
     lines.push('# 현장조사 — ' + baseName + ' (페이지 ' + pn + ')');
     lines.push('조사일: ' + today);
-    lines.push('손상 개수: ' + damages.length + ' / 사진 라벨: ' + photoLabels.length);
+    lines.push('손상 ' + damages.length + ' / 전경 ' + scenes.length + ' / 사진 라벨 ' + photoLabels.length);
     lines.push('');
+    if (scenes.length) {
+      lines.push('[전경]');
+      scenes.forEach(s => {
+        const photo = s.사진 ? ' [사진: ' + s.사진 + ']' : '';
+        lines.push('· ' + s.종류 + (s.방향 ? ' ' + s.방향 : '') + photo);
+      });
+      lines.push('');
+    }
+    if (damages.length) lines.push('[손상]');
     damages.forEach(d => {
       const parts = [];
       if (d.균열폭_mm) parts.push('균열폭 ' + d.균열폭_mm + 'mm');
@@ -1462,7 +1835,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const zipBlob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{level:6} });
     const safeName = baseName.replace(/[\\/:*?"<>|]/g, '_');
     downloadBlob(zipBlob, today + '_' + safeName + '_p' + pn + '.zip');
-    showModeIndicator('💾 ZIP 저장 완료 (' + damages.length + '개 손상)', 3000);
+    showModeIndicator('💾 ZIP 저장 완료 (손상 ' + damages.length + ' · 전경 ' + scenes.length + ')', 3000);
   }
 
   function savePNG() {
@@ -1487,26 +1860,69 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function drawLabelsOnCanvas(ctx) {
     const pd = state.pageData[state.currentPage];
     if (!pd) return;
+    const F1 = 22, F2 = 19;
     pd.labels.forEach(label => {
+      migrateLabel(label);
       const isPhoto = label.type === 'photo';
-      ctx.font = `bold ${24 * PDF_RENDER_SCALE / 2}px -apple-system, sans-serif`;
-      const textWidth = ctx.measureText(label.text).width;
-      const padding = 6;
-      const lx = label.x, ly = label.y;
-      ctx.fillStyle = isPhoto ? 'rgba(255, 215, 0, 0.9)' : 'rgba(233, 69, 96, 0.85)';
-      ctx.strokeStyle = isPhoto ? '#333333' : '#ffffff';
-      ctx.lineWidth = 2;
-      const boxH = 20;
+      const isScene = label.type === 'scene';
+      const boxColor = isPhoto ? 'rgba(255,215,0,0.92)' : isScene ? 'rgba(15,52,96,0.92)' : 'rgba(233,69,96,0.9)';
+      const accent = isPhoto ? '#FFC107' : isScene ? '#0f3460' : '#e94560';
+      const textColor = isPhoto ? '#333333' : '#ffffff';
+
+      // 박스 크기
+      ctx.font = `bold ${F1}px -apple-system, sans-serif`;
+      const w1 = ctx.measureText(label.line1 || '').width;
+      let w2 = 0;
+      if (label.line2) {
+        ctx.font = `600 ${F2}px -apple-system, sans-serif`;
+        w2 = ctx.measureText(label.line2).width;
+      }
+      const padX = 9, padY = 6;
+      const boxW = Math.max(w1, w2) + padX * 2;
+      const boxH = (label.line2 ? (F1 + F2 + 8) : (F1 + 2)) + padY * 2;
+      const bx = label.lx, by = label.ly;
+
+      // 지시선
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.roundRect(lx - padding, ly - boxH + 2, textWidth + padding * 2, boxH + padding, 4);
+      ctx.moveTo(label.px, label.py);
+      ctx.lineTo(bx + boxW / 2, by + boxH / 2);
+      ctx.stroke();
+
+      // 손상 위치 점
+      ctx.fillStyle = accent;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(label.px, label.py, 7, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = isPhoto ? '#333333' : '#ffffff';
-      ctx.fillText(label.text, lx, ly);
+
+      // 라벨 박스
+      ctx.fillStyle = boxColor;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, boxW, boxH, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // 텍스트
+      ctx.fillStyle = textColor;
+      ctx.textBaseline = 'top';
+      ctx.font = `bold ${F1}px -apple-system, sans-serif`;
+      ctx.fillText(label.line1 || '', bx + padX, by + padY);
+      if (label.line2) {
+        ctx.font = `600 ${F2}px -apple-system, sans-serif`;
+        ctx.fillText(label.line2, bx + padX, by + padY + F1 + 6);
+      }
+      ctx.textBaseline = 'alphabetic';
     });
   }
 
   async function savePDF() {
+    if (state.docMode === 'blank') { alert('새 문서는 PDF 저장을 지원하지 않습니다.\nZIP(1) 또는 PNG(3)로 저장하세요.'); return; }
     if (!state.pdfArrayBuffer) { alert('원본 PDF 데이터가 없습니다.\nPDF를 다시 열어주세요.'); return; }
     const _pdfLib = window.PDFLib || self.PDFLib || PDFLib;
     const { PDFDocument } = _pdfLib;
@@ -1539,24 +1955,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       // 필기 그리기
       pd.drawPaths.forEach(path => drawOnePath(oCtx, path));
 
-      // 라벨 그리기
-      pd.labels.forEach(label => {
-        const isPhoto = label.type === 'photo';
-        oCtx.font = `bold ${24 * PDF_RENDER_SCALE / 2}px -apple-system, sans-serif`;
-        const textWidth = oCtx.measureText(label.text).width;
-        const padding = 6;
-        const lx = label.x, ly = label.y;
-        oCtx.fillStyle = isPhoto ? 'rgba(255, 215, 0, 0.9)' : 'rgba(233, 69, 96, 0.85)';
-        oCtx.strokeStyle = isPhoto ? '#333333' : '#ffffff';
-        oCtx.lineWidth = 2;
-        const boxH = 20;
-        oCtx.beginPath();
-        oCtx.roundRect(lx - padding, ly - boxH + 2, textWidth + padding * 2, boxH + padding, 4);
-        oCtx.fill();
-        oCtx.stroke();
-        oCtx.fillStyle = isPhoto ? '#333333' : '#ffffff';
-        oCtx.fillText(label.text, lx, ly);
-      });
+      // 라벨 그리기 (점+지시선+2줄)
+      const _savedPage = state.currentPage;
+      state.currentPage = pn;
+      drawLabelsOnCanvas(oCtx);
+      state.currentPage = _savedPage;
 
       // 캔버스 → PNG → PDF에 삽입
       const overlayPng = overlayCanvas.toDataURL('image/png');
