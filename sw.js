@@ -1,4 +1,4 @@
-const CACHE_NAME = 'field-note-v10';
+const CACHE_NAME = 'field-note-v11';
 // 단일 HTML 구조 — pdf.js/JSZip/로고는 index.html에 인라인되어 별도 캐시 불필요
 const ASSETS = [
   './',
@@ -25,20 +25,34 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  // HTML 문서는 항상 네트워크 우선 (최신 배포 즉시 반영)
+  if (req.mode === 'navigate' || req.destination === 'document') {
+    event.respondWith(
+      fetch(req).then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        return response;
+      }).catch(() =>
+        caches.match(req).then((c) => c || caches.match('./index.html'))
+      )
+    );
+    return;
+  }
+
+  // 그 외 정적 자원은 캐시 우선
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.match(req).then((cached) => {
       if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (response.ok && event.request.method === 'GET') {
+      return fetch(req).then((response) => {
+        if (response.ok) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
         }
         return response;
       });
-    }).catch(() => {
-      if (event.request.destination === 'document') {
-        return caches.match('./index.html');
-      }
     })
   );
 });
