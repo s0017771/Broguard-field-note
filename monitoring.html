@@ -29,6 +29,13 @@
   .topbar .spacer{flex:1}
   .topbar .stage{font-size:.68rem;font-weight:700;background:rgba(255,255,255,.14);
     padding:4px 9px;border-radius:20px;opacity:.9}
+  .syncchip{font-size:.66rem;font-weight:800;padding:3px 9px;border-radius:20px;
+    background:rgba(255,255,255,.14);color:#eaf1f8;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .syncchip .sd{width:7px;height:7px;border-radius:50%;background:#9fb0c2;flex:0 0 7px}
+  .syncchip.on .sd{background:#54d19a} .syncchip.off .sd{background:#f0b46a}
+  .syncchip.syncing .sd{background:#eacb5a;animation:pulse 1s infinite}
+  .syncchip.connecting .sd{background:#9fb0c2;animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
   .wrap{max-width:760px;margin:0 auto;padding:18px 16px 60px}
 
   /* 인덱스 카드 */
@@ -266,7 +273,9 @@
 <section class="screen on" id="screen-main">
   <div class="topbar">
     <button class="back" onclick="location.href='index.html'">‹ 허브</button>
-    <span class="brand">BRG 계측</span><span class="spacer"></span><span class="stage">프로젝트</span>
+    <span class="brand">BRG 계측</span><span class="spacer"></span>
+    <span class="syncchip connecting"><span class="sd"></span><span class="slabel">연결 중…</span></span>
+    <span class="stage">프로젝트</span>
   </div>
   <div class="wrap">
     <p class="sec-title">계측 프로젝트</p>
@@ -280,6 +289,9 @@
     </div>
     <div class="stagenote">전체 계측 데이터(사진 포함)를 <b>JSON 파일 하나</b>로 저장/복원합니다. 발주처 전달·백업용. 파일을 불러오면 현재 데이터를 그 파일 내용으로 교체합니다.</div>
     <div class="stagenote" id="storage-note"></div>
+
+    <p class="sec-title" style="margin-top:24px">실시간 공유 (백엔드)</p>
+    <div class="stagenote" id="sync-note">실시간 공유 — 서버에 <b>연결 중</b>입니다…</div>
   </div>
 </section>
 
@@ -287,7 +299,9 @@
 <section class="screen" id="screen-summary">
   <div class="topbar">
     <button class="back" onclick="go('screen-main')">‹ 프로젝트</button>
-    <span class="brand">계측 총괄</span><span class="spacer"></span><span class="stage">총괄</span>
+    <span class="brand">계측 총괄</span><span class="spacer"></span>
+    <span class="syncchip connecting"><span class="sd"></span><span class="slabel">연결 중…</span></span>
+    <span class="stage">총괄</span>
   </div>
   <div class="wrap">
     <!-- 1) 개략 현황 + 계측 목표 -->
@@ -501,8 +515,7 @@ function renderProjects(){
 
 /* ── 총괄 페이지 ── */
 let CUR=null;
-function openSummary(pid){
-  CUR=DB.projects.find(p=>p.id===pid); if(!CUR) return;
+function renderSummaryHeader(){
   document.getElementById('sum-name').textContent=CUR.name;
   document.getElementById('sum-kv').innerHTML=`
     <dt>단계</dt><dd><b>${esc(CUR.phase||'-')}</b></dd>
@@ -514,6 +527,10 @@ function openSummary(pid){
     <dt>주기</dt><dd>${esc(CUR.period)}</dd>
     <dt>경고 임계</dt><dd>기준값 대비 누적 ${CUR.thresholdMm}mm</dd>`;
   document.getElementById('sum-goal').innerHTML=`<b>계측 목표</b> · ${CUR.goal}`;
+}
+function openSummary(pid){
+  CUR=DB.projects.find(p=>p.id===pid); if(!CUR) return;
+  renderSummaryHeader();
   chartState.scope='all';
   fillChartPointSelect();
   applyChartMode();
@@ -895,7 +912,74 @@ function drawQR(canvas, text, px){
    구조는 JSON 표준이라 5단계(파일 내보내기)·3차(백엔드) 이전에 그대로 재활용.
    ══════════════════════════════════════════════════════════ */
 const LS_KEY='brg-monitoring-v2';   // v2: 공사 전/후 2개 프로젝트 + 측점번호(구조 변경)
-function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({schemaVersion:DB.schemaVersion, projects:DB.projects})); updateStorageNote(); return true; }catch(e){ return false; } }
+function persistLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({schemaVersion:DB.schemaVersion, projects:DB.projects})); updateStorageNote(); return true; }catch(e){ return false; } }
+function persist(){ const ok=persistLocal(); fbPush(); return ok; }   // 로컬 저장 + 서버 반영(3차)
+
+/* ══════════════════════════════════════════════════════════
+   3차 백엔드 — 실시간 공유 (Firestore)
+   · 로컬(localStorage)은 그대로 오프라인 기반. 그 위에 "공유 계층"을 얹음.
+   · 텍스트 데이터(측점·계측값·기록)만 동기화. 사진은 이 단계에선 로컬 전용(다음 단계에서 Storage로).
+   · 4자리 비밀번호는 그대로 유지(실수 방지 수준). 서버 쓰기 차단은 3-C(규칙)에서.
+   ══════════════════════════════════════════════════════════ */
+let _lastAppliedRemote=null;        // 내 쓰기의 메아리(echo)를 걸러내기 위한 기준
+let deferredRemote=null;            // 입력 모달이 열려 있으면 닫힌 뒤 반영
+function stripPhotos(projects){     // 서버에는 사진(dataURL)을 빼고 텍스트만 보냄
+  return projects.map(p=>Object.assign({}, p, {
+    measurements:(p.measurements||[]).map(m=>{ const c=Object.assign({},m); delete c.photos; return c; })
+  }));
+}
+function fbPush(){                   // 로컬 변경을 서버로 밀어올림
+  if(window.FB && window.FB.ready){
+    try{ const stripped=stripPhotos(DB.projects); _lastAppliedRemote=JSON.stringify(stripped); window.FB.push(stripped); }catch(e){}
+  }
+}
+function graftPhotos(remoteProjects){ // 서버에서 온 텍스트에 이 기기의 로컬 사진을 다시 붙임(연번 기준)
+  const localByProj={};
+  DB.projects.forEach(p=>{ const map={}; (p.measurements||[]).forEach(m=>{ if(m.photos) map[m.seq]=m.photos; }); localByProj[p.id]=map; });
+  return remoteProjects.map(p=>{ const map=localByProj[p.id]||{};
+    return Object.assign({}, p, { measurements:(p.measurements||[]).map(m=> (map[m.seq]&&!m.photos)?Object.assign({},m,{photos:map[m.seq]}):m) }); });
+}
+function modalsOpen(){ const o=document.getElementById('overlay'); return !!(o && o.classList.contains('show')); }
+function applyRemote(remoteProjects){
+  if(!Array.isArray(remoteProjects)||!remoteProjects.length) return;
+  const incoming=JSON.stringify(remoteProjects);
+  if(incoming===_lastAppliedRemote) return;                 // 내 쓰기 메아리 → 무시
+  if(modalsOpen()){ deferredRemote=remoteProjects; return; } // 입력 중이면 방해 않고 대기
+  _lastAppliedRemote=incoming;
+  DB.projects=graftPhotos(remoteProjects);                  // 로컬 사진 보존
+  persistLocal();
+  refreshUI();
+}
+function refreshUI(){                // 서버 변경을 화면에 반영(현재 보고 있는 화면 유지)
+  renderProjects();
+  if(document.getElementById('screen-summary').classList.contains('on')){
+    CUR = CUR ? DB.projects.find(p=>p.id===CUR.id) : null;
+    if(!CUR){ go('screen-main'); return; }
+    if(chartState.scope!=='all' && !CUR.points.some(p=>p.id===chartState.scope)) chartState.scope='all';
+    renderSummaryHeader(); fillChartPointSelect(); applyChartMode(); renderChart(); renderMeasurements();
+  }
+}
+function setSync(state){             // 공유 상태 표시
+  const map={ connecting:['connecting','연결 중…'], online:['on','실시간 공유 중'],
+              offline:['off','오프라인 · 로컬 저장'], sync:['syncing','동기화 중…'] };
+  const cfg=map[state]||map.connecting;
+  document.querySelectorAll('.syncchip').forEach(c=>{ c.className='syncchip '+cfg[0];
+    const l=c.querySelector('.slabel'); if(l) l.textContent=cfg[1]; });
+  const note=document.getElementById('sync-note');
+  if(note){
+    const detail={
+      online:'다른 기기와 <b>실시간으로 공유</b> 중입니다. 입력하면 자동으로 서버에 반영됩니다. (사진은 아직 이 기기에만 저장 — 다음 단계에서 공유 예정)',
+      offline:'인터넷이 없어 <b>이 기기에만 저장</b>됩니다. 연결되면 자동으로 서버와 동기화됩니다.',
+      sync:'서버와 <b>동기화 중</b>입니다…',
+      connecting:'서버에 <b>연결 중</b>입니다…'
+    }[state]||'';
+    note.innerHTML='실시간 공유 — '+detail;
+  }
+}
+/* 모듈(Firebase)이 호출하는 다리 함수 */
+window.__brgOnRemote=function(projects){ applyRemote(projects); };
+window.__brgGetLocal=function(){ return stripPhotos(DB.projects); };
+window.__brgSync=function(state){ setSync(state); };
 function updateStorageNote(){
   const el=document.getElementById('storage-note'); if(!el) return;
   const raw=localStorage.getItem(LS_KEY)||'';
@@ -1132,6 +1216,7 @@ function saveMeasurement(){
 function closeModals(){
   document.getElementById('overlay').classList.remove('show');
   document.querySelectorAll('.modal').forEach(m=>m.classList.remove('show'));
+  if(deferredRemote){ const r=deferredRemote; deferredRemote=null; setTimeout(()=>applyRemote(r),0); }  // 입력 중 미룬 서버 변경 반영
 }
 
 /* ── 측점 관리 (이름 수정·삭제·추가) — 비밀번호 인증 필요 ── */
@@ -1228,9 +1313,69 @@ renderProjects();
   }
 })();
 
+/* 실시간 공유 상태 초기화 + 연결 지연 시 오프라인 안내 */
+setSync('connecting');
+setTimeout(()=>{ if(!(window.FB && window.FB.ready)) setSync('offline'); }, 10000);
+
 /* 테스트용 훅 */
 window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurement, deleteMeasurement,
-  get current(){return CUR;}, get unlocked(){return unlocked;}, PASSCODE, exportData, importData, openQR, qrUrl };
+  get current(){return CUR;}, get unlocked(){return unlocked;}, PASSCODE, exportData, importData, openQR, qrUrl,
+  applyRemote, stripPhotos, graftPhotos, get lastRemote(){return _lastAppliedRemote;} };
+</script>
+
+<!-- ═══════════ 3차 백엔드 — Firebase Firestore 실시간 동기화 (모듈) ═══════════
+     · 텍스트 데이터만 동기화(사진 제외). 오프라인 지속성 켜짐(IndexedDB).
+     · config 값은 공개돼도 되는 값(웹앱 식별자). 실제 접근 제어는 Firestore 규칙(3-C 예정).
+     · CDN/네트워크 불가 시 이 모듈은 조용히 실패 → 앱은 로컬 전용으로 정상 동작. -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+           doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAU45BeA5XwczM5BhpStjcQRqzdtsokE-Q",
+    authDomain: "brg-eng.firebaseapp.com",
+    projectId: "brg-eng",
+    storageBucket: "brg-eng.firebasestorage.app",
+    messagingSenderId: "723238158802",
+    appId: "1:723238158802:web:d1ab799fbbc6a89757080b"
+  };
+
+  try{
+    const app = initializeApp(firebaseConfig);
+    // 오프라인 지속성 + 다중 탭 지원
+    const fdb = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+    const ref = doc(fdb, 'monitoring', 'state');   // 전체 상태를 문서 1개로 (텍스트만, 소용량)
+
+    window.FB = {
+      ready: true,
+      push(projects){
+        setDoc(ref, { schemaVersion: 2, projects, updatedAt: serverTimestamp() })
+          .catch(()=>{ if(window.__brgSync) window.__brgSync('offline'); });
+      }
+    };
+
+    onSnapshot(ref, { includeMetadataChanges: true }, (snap)=>{
+      const st = snap.metadata.hasPendingWrites ? 'sync' : (snap.metadata.fromCache ? 'offline' : 'online');
+      if(window.__brgSync) window.__brgSync(st);
+      if(!snap.exists()){
+        // 서버에 아직 문서가 없으면 이 기기의 로컬 데이터로 최초 생성
+        if(!snap.metadata.hasPendingWrites){
+          const local = window.__brgGetLocal ? window.__brgGetLocal() : null;
+          if(local && local.length) window.FB.push(local);
+        }
+        return;
+      }
+      const data = snap.data();
+      if(data && Array.isArray(data.projects) && data.projects.length && window.__brgOnRemote){
+        window.__brgOnRemote(data.projects);
+      }
+    }, ()=>{ if(window.__brgSync) window.__brgSync('offline'); });
+  }catch(e){
+    if(window.__brgSync) window.__brgSync('offline');
+  }
 </script>
 </body>
 </html>
