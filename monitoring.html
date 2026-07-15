@@ -986,6 +986,15 @@ function setSync(state){             // 공유 상태 표시
 window.__brgOnRemote=function(projects){ applyRemote(projects); };
 window.__brgGetLocal=function(){ return stripPhotos(DB.projects); };
 window.__brgSync=function(state){ setSync(state); };
+/* Firebase 준비되면 1회: 이 기기에만 있던 로컬 사진을 서버에 올려 공유(3-B 이전 데이터 백필) */
+let _photosBackfilled=false;
+window.__brgFbReady=function(){
+  if(_photosBackfilled) return; _photosBackfilled=true;
+  if(!(window.FB && window.FB.ready && window.FB.pushPhotos)) return;
+  DB.projects.forEach(p=>(p.measurements||[]).forEach(m=>{
+    if(m.photos && Object.keys(m.photos).length) window.FB.pushPhotos(p.id, m.seq, m.photos);
+  }));
+};
 function updateStorageNote(){
   const el=document.getElementById('storage-note'); if(!el) return;
   const raw=localStorage.getItem(LS_KEY)||'';
@@ -1421,6 +1430,7 @@ window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurem
         return Object.keys(out).length ? out : null;
       }
     };
+    if(window.__brgFbReady) window.__brgFbReady();   // 로컬 사진 백필
 
     onSnapshot(ref, { includeMetadataChanges: true }, (snap)=>{
       const st = snap.metadata.hasPendingWrites ? 'sync' : (snap.metadata.fromCache ? 'offline' : 'online');
