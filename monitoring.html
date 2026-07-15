@@ -61,6 +61,8 @@
   .proj .pt h3{font-size:1.02rem;font-weight:800}
   .proj .pt p{font-size:.78rem;color:var(--muted);margin-top:3px}
   .proj .chev{margin-left:auto;color:var(--muted);font-size:1.3rem}
+  .phase{font-size:.66rem;font-weight:800;padding:2px 8px;border-radius:20px;vertical-align:2px;margin-right:2px}
+  .phase.pre{background:#e8f0f9;color:#2b6cb0} .phase.post{background:#e7f4ec;color:#2f9e6f}
 
   /* 총괄 페이지 */
   .panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 16px;margin-bottom:16px}
@@ -81,7 +83,11 @@
   .graph-ph .sm{font-size:.72rem}
 
   /* 추세 그래프 */
-  .chart-ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  .chart-ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;align-items:center}
+  .chartsel{border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--navy);
+    font-size:.82rem;font-weight:800;padding:8px 10px;font-family:var(--sans)}
+  .chart-sub{font-size:.74rem;color:var(--muted);margin-bottom:8px;min-height:1em}
+  .seg.hide{display:none}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
   .seg button{border:none;background:#fff;color:var(--muted);font-size:.8rem;font-weight:700;padding:8px 12px}
   .seg button+button{border-left:1px solid var(--line)}
@@ -227,15 +233,17 @@
     <div class="panel">
       <h3 style="margin-bottom:10px"><span class="dot"></span>추세 그래프</h3>
       <div class="chart-ctrl">
-        <div class="seg" id="seg-metric">
-          <button type="button" data-metric="gap" class="on">이격(폭)</button>
-          <button type="button" data-metric="step">단차(침하)</button>
-        </div>
+        <select id="seg-point" class="chartsel" onchange="onChartPoint()"></select>
         <div class="seg" id="seg-mode">
           <button type="button" data-mode="cum" class="on">누적 변화</button>
           <button type="button" data-mode="abs">실측값</button>
         </div>
+        <div class="seg" id="seg-metric">
+          <button type="button" data-metric="gap" class="on">이격(폭)</button>
+          <button type="button" data-metric="step">단차(침하)</button>
+        </div>
       </div>
+      <div class="chart-sub" id="chart-sub"></div>
       <div id="chart-wrap">
         <svg id="chart" viewBox="0 0 640 350" preserveAspectRatio="xMidYMid meet" role="img" aria-label="추세 그래프"></svg>
         <div id="chart-tip" class="ctip"></div>
@@ -302,50 +310,60 @@
    · project 안에 baseline / threshold / points / measurements
    · 계측 항목은 metrics 배열로 정의해 향후 확장(균열폭·기울기 등) 대비
    ══════════════════════════════════════════════════════════ */
+/* 측점 6개소: 좌/우 × (접속부·1m·2m), 각 측점에 측점번호(no) 부여 */
+function brgPoints(){
+  return [
+    { id:'P1', no:1, label:'좌 · 접속부' }, { id:'P2', no:2, label:'좌 · 1m' }, { id:'P3', no:3, label:'좌 · 2m' },
+    { id:'P4', no:4, label:'우 · 접속부' }, { id:'P5', no:5, label:'우 · 1m' }, { id:'P6', no:6, label:'우 · 2m' }
+  ];
+}
+function brgProject(id, name, phase, seed){
+  return Object.assign({
+    id, name, phase,
+    facility: '누산배수교 접속부 자전거도로 보강토옹벽',
+    structure: '보강토옹벽 H=3.6m(벽체3.0+근입0.6) · 보강재 TR EX 6T(6단) · 저면 유공관 D150',
+    damage: '접속부 약 10cm 침하(단차), 경계부 약 3~4cm 이격',
+    goal: '이격·단차의 진행성 모니터링으로 <b>함몰 위험 조기 감지</b>. 초기 2~4주 간격, 안정 시 조정, 집중호우 후 수시.',
+    period: phase==='공사 전' ? '재포장 공사 전 — 긴급보수 후 진행성 계측' : '재포장 공사 후 — 재이격 진행성 계측',
+    thresholdMm: 10,                           // 기준값 대비 누적 경고 임계값(프로젝트별)
+    metrics: [                                 // 확장 가능(향후 벽체 기울기 등)
+      { key: 'gap',  label: '이격(폭)',  unit: 'mm', method: '크랙게이지' },
+      { key: 'step', label: '단차(침하)', unit: 'mm', method: '레벨/직선자' }
+    ],
+    points: brgPoints(),
+    baseline: {},                              // 설치 당시 계측값 = 기준값
+    measurements: []
+  }, seed||{});
+}
+
 const DB = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   projects: [
-    {
-      id: 'nusan-rw-01',
-      name: '누산배수교 접속부 자전거도로 보강토옹벽',
-      facility: '누산배수교 접속부 자전거도로 보강토옹벽',
-      structure: '보강토옹벽 H=3.6m · 보강재 6단 · 저면 유공관 D150',
-      damage: '접속부 약 10cm 침하(단차), 경계부 약 3~4cm 이격',
-      goal: '이격·단차의 진행성 모니터링으로 <b>함몰 위험 조기 감지</b>. 초기 1~2주 간격, 안정 시 조정, 집중호우 후 수시 계측.',
-      period: '약 2개월 (발주처 제출용)',
-      thresholdMm: 10,                         // 기준값 대비 누적 경고 임계값
-      metrics: [                               // 확장 가능한 계측 항목 정의
-        { key: 'gap',  label: '이격(폭)', unit: 'mm' },
-        { key: 'step', label: '단차(침하)', unit: 'mm' }
-      ],
-      points: [
-        { id: 'P1', label: '측점 1 (접속부 중앙)' },
-        { id: 'P2', label: '측점 2 (경계 우측)' },
-        { id: 'P3', label: '측점 3 (경계 좌측)' },
-        { id: 'P4', label: '측점 4 (옹벽 상단)' }
-      ],
-      // 설치 당시 계측값 = 기준값(baseline)
+    // 공사 전 — 샘플 데이터로 그래프 시연 (모의 테스트 시 reset 또는 실측으로 대체)
+    brgProject('nusan-pre', '누산배수교 접속부 (공사 전)', '공사 전', {
       baseline: {
-        P1: { gap: 32.0, step: 98.0 },
-        P2: { gap: 28.4, step: 41.0 },
-        P3: { gap: 30.1, step: 55.0 },
-        P4: { gap: 12.0, step: 8.0 }
+        P1: { gap: 30.0, step: 95.0 }, P2: { gap: 18.0, step: 40.0 }, P4: { gap: 26.0, step: 88.0 }
       },
       measurements: [
-        { seq: 1, datetime: '2026-05-20 10:20', pointId: 'P1', gap: 32.0, step: 98.0,
-          engineer: '초기 계측 — 기준값 설정. KOBETO 크랙게이지 + 십자마커 설치 완료. 강우 없음, 노면 건조.' },
-        { seq: 2, datetime: '2026-05-27 09:40', pointId: 'P1', gap: 32.6, step: 98.4,
-          engineer: '변화 미미. 최근 강우 없음. 마커·게이지 상태 양호.' },
-        { seq: 3, datetime: '2026-06-03 11:05', pointId: 'P1', gap: 33.1, step: 99.2,
-          engineer: '소폭 진행. 6/1 집중호우(약 60mm) 이후 첫 계측. 배수 유공관 주변 관찰 필요.' },
-        { seq: 4, datetime: '2026-06-17 10:00', pointId: 'P2', gap: 28.4, step: 41.0,
-          engineer: '측점 2 초기 계측(기준값). 경계부 우측. 균열 진전 흔적은 아직 없음.' },
-        { seq: 5, datetime: '2026-07-01 15:30', pointId: 'P1', gap: 40.5, step: 108.0,
-          engineer: '강우 후 진행 뚜렷. 누적 단차 +10mm 도달 — 주의 요망. 발주처 보고 및 계측 주기 단축 검토.' }
+        { seq:1, datetime:'2026-05-20 10:20', pointId:'P1', gap:30.0, step:95.0, engineer:'초기 계측 — 기준값 설정. 긴급보수(우수차단) 후 크랙게이지·십자마커 설치. 강우 없음.' },
+        { seq:2, datetime:'2026-05-20 10:40', pointId:'P2', gap:18.0, step:40.0, engineer:'좌 1m 지점 기준값 설정.' },
+        { seq:3, datetime:'2026-05-20 11:00', pointId:'P4', gap:26.0, step:88.0, engineer:'우 접속부 기준값 설정.' },
+        { seq:4, datetime:'2026-05-27 09:40', pointId:'P1', gap:30.5, step:95.6, engineer:'변화 미미. 최근 강우 없음.' },
+        { seq:5, datetime:'2026-06-03 11:05', pointId:'P1', gap:31.4, step:97.0, engineer:'6/1 집중호우(약 60mm) 후 첫 계측. 소폭 진행.' },
+        { seq:6, datetime:'2026-06-03 11:20', pointId:'P4', gap:26.4, step:88.5, engineer:'우 접속부 소폭 진행.' },
+        { seq:7, datetime:'2026-06-17 10:00', pointId:'P1', gap:33.2, step:99.5, engineer:'진행 지속. 유공관 토출 관찰 필요.' },
+        { seq:8, datetime:'2026-07-01 15:30', pointId:'P1', gap:40.2, step:106.0, engineer:'강우 후 진행 뚜렷. 누적 단차 +11mm — 주의. 발주처 보고 및 재포장 일정 협의.' },
+        { seq:9, datetime:'2026-07-01 15:50', pointId:'P4', gap:27.6, step:90.4, engineer:'우 접속부 완만한 진행.' }
       ]
-    }
+    }),
+    // 공사 후 — 재포장 완료 후 계측 시작(초기 비어 있음)
+    brgProject('nusan-post', '누산배수교 접속부 (공사 후)', '공사 후')
   ]
 };
+
+/* 측점 표시 이름 (측점번호 + 이름) */
+function ptName(pt){ return pt ? ((pt.no!=null?('측점 '+pt.no+' · '):'')+pt.label) : ''; }
+function ptOf(p, id){ return p.points.find(x=>x.id===id) || {label:id}; }
 
 /* ── 화면 전환 ── */
 function go(id){
@@ -365,8 +383,9 @@ function renderProjects(){
     const n=p.measurements.length;
     const b=document.createElement('button');
     b.className='proj';
+    const phaseTag = p.phase ? `<span class="phase ${p.phase==='공사 전'?'pre':'post'}">${esc(p.phase)}</span> ` : '';
     b.innerHTML=`<span class="pin">🏗️</span>
-      <span class="pt"><h3>${esc(p.name)}</h3><p>${esc(p.structure)} · 계측 ${n}건</p></span>
+      <span class="pt"><h3>${phaseTag}${esc(p.name)}</h3><p>측점 ${p.points.length}개소 · 계측 ${n}건</p></span>
       <span class="chev">›</span>`;
     b.onclick=()=>openSummary(p.id);
     box.appendChild(b);
@@ -379,13 +398,18 @@ function openSummary(pid){
   CUR=DB.projects.find(p=>p.id===pid); if(!CUR) return;
   document.getElementById('sum-name').textContent=CUR.name;
   document.getElementById('sum-kv').innerHTML=`
+    <dt>단계</dt><dd><b>${esc(CUR.phase||'-')}</b></dd>
     <dt>시설물</dt><dd>${esc(CUR.facility)}</dd>
     <dt>구조</dt><dd>${esc(CUR.structure)}</dd>
     <dt>손상</dt><dd>${esc(CUR.damage)}</dd>
-    <dt>측점</dt><dd>${CUR.points.length}개소</dd>
-    <dt>기간</dt><dd>${esc(CUR.period)}</dd>
+    <dt>측점</dt><dd>${CUR.points.length}개소 (좌·우 × 접속부·1m·2m)</dd>
+    <dt>계측 방법</dt><dd>이격=크랙게이지 · 단차=레벨/직선자</dd>
+    <dt>주기</dt><dd>${esc(CUR.period)}</dd>
     <dt>경고 임계</dt><dd>기준값 대비 누적 ${CUR.thresholdMm}mm</dd>`;
   document.getElementById('sum-goal').innerHTML=`<b>계측 목표</b> · ${CUR.goal}`;
+  chartState.scope='all';
+  fillChartPointSelect();
+  applyChartMode();
   renderChart();
   renderMeasurements();
   go('screen-summary');
@@ -408,24 +432,37 @@ function signed(x){ const v=Math.round(x*10)/10; return (v>0?'+':'')+v.toFixed(1
    ══════════════════════════════════════════════════════════ */
 // 빨강은 '임계/위험' 전용 → 측점 색상에는 넣지 않음(혼동 방지)
 const CHART_COLORS=['#2b6cb0','#2f9e6f','#c98a12','#7b5ea7','#0f8a8a','#4d5a68','#b5468a','#1f3a5f'];
-let chartState={metric:'gap', mode:'cum'};
+let chartState={scope:'all', metric:'gap', mode:'cum'};   // scope: 'all'(전체 비교) 또는 측점 id
 const SVGNS='http://www.w3.org/2000/svg';
 function svgEl(name, attrs){ const e=document.createElementNS(SVGNS,name); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
 function parseTs(s){ return new Date(String(s).replace(' ','T')).getTime(); }
+const METRIC_COLOR={ gap:'#2b6cb0', step:'#c98a12' };      // 이격=파랑, 단차=주황 (빨강은 위험 전용)
 
-function chartSeries(){                          // 측점별 시계열 데이터 구성
-  const p=CUR, met=chartState.metric, cum=chartState.mode==='cum';
-  const byPt={};
-  p.measurements.forEach(m=>{
-    const base=(p.baseline[m.pointId]||{})[met];
-    const raw=m[met];
-    const v = (cum && base!=null) ? (raw-base) : raw;
-    (byPt[m.pointId]=byPt[m.pointId]||[]).push({t:parseTs(m.datetime), v, raw, seq:m.seq, dt:m.datetime});
-  });
-  return p.points.filter(pt=>byPt[pt.id]).map((pt,i)=>({
-    id:pt.id, label:pt.label, color:CHART_COLORS[i%CHART_COLORS.length],
-    data:byPt[pt.id].sort((a,b)=>a.t-b.t)
-  }));
+function chartSeries(){
+  const p=CUR, cum=chartState.mode==='cum';
+  if(chartState.scope==='all'){
+    // 전체 비교: 한 지표(metric)를 측점별 곡선으로
+    const met=chartState.metric, byPt={};
+    p.measurements.forEach(m=>{
+      const base=(p.baseline[m.pointId]||{})[met], raw=m[met];
+      const v=(cum && base!=null)?(raw-base):raw;
+      (byPt[m.pointId]=byPt[m.pointId]||[]).push({t:parseTs(m.datetime),v,raw,seq:m.seq,dt:m.datetime,pt:m.pointId});
+    });
+    return p.points.filter(pt=>byPt[pt.id]).map((pt,i)=>({
+      key:pt.id, label:ptName(pt), color:CHART_COLORS[i%CHART_COLORS.length],
+      data:byPt[pt.id].sort((a,b)=>a.t-b.t)
+    }));
+  } else {
+    // 측점별: 한 측점의 이격·단차 두 곡선
+    const pid=chartState.scope, base=p.baseline[pid]||{};
+    const ms=p.measurements.filter(m=>m.pointId===pid).sort((a,b)=>parseTs(a.datetime)-parseTs(b.datetime));
+    if(!ms.length) return [];
+    return p.metrics.map(mt=>({
+      key:mt.key, label:mt.label, color:METRIC_COLOR[mt.key]||'#2b6cb0',
+      data:ms.map(m=>({t:parseTs(m.datetime), v:(cum && base[mt.key]!=null)?(m[mt.key]-base[mt.key]):m[mt.key],
+        raw:m[mt.key], seq:m.seq, dt:m.datetime, pt:pid}))
+    }));
+  }
 }
 
 function renderChart(){
@@ -516,16 +553,37 @@ function niceTicks(min,max,n){
 function fmtDate(t){ const d=new Date(t); return (d.getMonth()+1)+'/'+d.getDate(); }
 function showTip(ev,s,d){
   const tip=document.getElementById('chart-tip'), wrap=document.getElementById('chart-wrap');
-  const r=wrap.getBoundingClientRect(), svg=document.getElementById('chart').getBoundingClientRect();
+  const r=wrap.getBoundingClientRect();
   const cx=ev.clientX-r.left, cy=ev.clientY-r.top;
-  const metLabel=chartState.metric==='gap'?'이격(폭)':'단차(침하)';
+  // 전체 비교: s.label=측점, 지표=현재 metric / 측점별: s.label=지표, 측점=선택된 측점
+  const loc = chartState.scope==='all' ? esc(s.label) : esc(ptName(ptOf(CUR,chartState.scope)));
+  const metLabel = chartState.scope==='all' ? (chartState.metric==='gap'?'이격(폭)':'단차(침하)') : esc(s.label);
   const cumTxt = chartState.mode==='cum' ? `누적 <b>${signed(d.v)}mm</b> (실측 ${fmt(d.raw)})` : `실측 <b>${fmt(d.raw)}mm</b>`;
-  tip.innerHTML=`#${d.seq} · ${esc(s.label)}<br>${esc(d.dt.slice(0,16))}<br>${metLabel} ${cumTxt}`;
+  tip.innerHTML=`#${d.seq} · ${loc}<br>${esc(d.dt.slice(0,16))}<br>${metLabel} ${cumTxt}`;
   tip.style.left=cx+'px'; tip.style.top=cy+'px'; tip.classList.add('show');
 }
 function hideTip(){ document.getElementById('chart-tip').classList.remove('show'); }
 
-/* 그래프 컨트롤(측점/모드 토글) */
+/* 측점 선택 드롭다운 채우기 (전체 비교 + 측점별) */
+function fillChartPointSelect(){
+  const sel=document.getElementById('seg-point'); if(!sel||!CUR) return;
+  sel.innerHTML='<option value="all">전체 비교 (측점 겹쳐 보기)</option>'
+    + CUR.points.map(pt=>`<option value="${pt.id}">${esc(ptName(pt))}</option>`).join('');
+  sel.value = chartState.scope;
+}
+function onChartPoint(){
+  chartState.scope=document.getElementById('seg-point').value;
+  applyChartMode(); renderChart();
+}
+function applyChartMode(){
+  // 측점별 모드에선 지표 토글 숨김(이격·단차 함께 표시), 안내문 갱신
+  const isAll=chartState.scope==='all';
+  document.getElementById('seg-metric').classList.toggle('hide', !isAll);
+  document.getElementById('chart-sub').textContent = isAll
+    ? '측점을 겹쳐 한 지표로 비교합니다. 특정 측점을 고르면 그 측점의 이격·단차를 함께 봅니다.'
+    : '이 측점의 이격(파랑)·단차(주황)를 날짜별로 봅니다. (기준값 대비 누적)';
+}
+/* 그래프 컨트롤 배선 */
 function wireChartControls(){
   document.querySelectorAll('#seg-metric button').forEach(b=>b.addEventListener('click',()=>{
     chartState.metric=b.dataset.metric;
@@ -547,14 +605,14 @@ function renderMeasurements(){
   // 최신순 정렬
   const rows=[...p.measurements].sort((a,b)=>b.datetime.localeCompare(a.datetime));
   rows.forEach(m=>{
-    const pt=p.points.find(x=>x.id===m.pointId)||{label:m.pointId};
+    const pt=ptOf(p,m.pointId);
     const c=cumInfo(p,m);
     const el=document.createElement('div');
     el.className='acc'+(c.alert?' alert':'');
     el.innerHTML=`
       <button class="acc-hd" type="button">
         <span class="seq">#${m.seq}</span>
-        <span class="mid"><div class="d">${esc(m.datetime.slice(0,10))}</div><div class="p">${esc(pt.label)}</div></span>
+        <span class="mid"><div class="d">${esc(m.datetime.slice(0,10))}</div><div class="p">${esc(ptName(pt))}</div></span>
         <span class="vals">폭 ${fmt(m.gap)} · 단차 ${fmt(m.step)}<span class="warnflag">${c.alert?' ⚠':''}</span></span>
         <span class="caret">▾</span>
       </button>
@@ -593,7 +651,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
    로컬 저장 (1차 방식) — 브라우저 localStorage.
    구조는 JSON 표준이라 5단계(파일 내보내기)·3차(백엔드) 이전에 그대로 재활용.
    ══════════════════════════════════════════════════════════ */
-const LS_KEY='brg-monitoring-v1';
+const LS_KEY='brg-monitoring-v2';   // v2: 공사 전/후 2개 프로젝트 + 측점번호(구조 변경)
 function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({schemaVersion:DB.schemaVersion, projects:DB.projects})); }catch(e){ toast('저장 실패: 브라우저 용량 확인 필요'); } }
 function loadSaved(){
   try{ const raw=localStorage.getItem(LS_KEY);
@@ -632,18 +690,19 @@ function nowStr(){
 }
 function fillPointSelect(selId){
   const sel=document.getElementById('f-point');
-  sel.innerHTML=CUR.points.map(p=>`<option value="${p.id}">${esc(p.label)}</option>`).join('')
+  sel.innerHTML=CUR.points.map(p=>`<option value="${p.id}">${esc(ptName(p))}</option>`).join('')
     +'<option value="__add__">＋ 새 측점 추가…</option>';
   if(selId) sel.value=selId;
 }
 function onPointChange(){
   const sel=document.getElementById('f-point');
   if(sel.value==='__add__'){                       // 측점은 언제든 추가 가능 (시작 시 확정 불필요)
-    const name=(prompt('새 측점 이름을 입력하세요 (예: 측점 5 (배수구 옆))')||'').trim();
+    const name=(prompt('새 측점 이름을 입력하세요 (예: 좌 · 3m)')||'').trim();
     if(name){
       let n=1; while(CUR.points.some(p=>p.id==='P'+n)) n++;
-      const np={id:'P'+n, label:name};
-      CUR.points.push(np); persist(); fillPointSelect(np.id);
+      const nextNo=CUR.points.reduce((mx,p)=>Math.max(mx,p.no||0),0)+1;  // 측점번호 자동 부여
+      const np={id:'P'+n, no:nextNo, label:name};
+      CUR.points.push(np); persist(); fillChartPointSelect(); fillPointSelect(np.id);
     } else { fillPointSelect(CUR.points[0]?.id); }
   }
   updateCumHint();
