@@ -1325,12 +1325,14 @@ window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurem
 
 <!-- ═══════════ 3차 백엔드 — Firebase Firestore 실시간 동기화 (모듈) ═══════════
      · 텍스트 데이터만 동기화(사진 제외). 오프라인 지속성 켜짐(IndexedDB).
-     · config 값은 공개돼도 되는 값(웹앱 식별자). 실제 접근 제어는 Firestore 규칙(3-C 예정).
+     · 익명 인증(화면엔 안 보임)으로 서버 접근 → 규칙에서 미인증 외부 접근 차단(3-C).
+     · config 값은 공개돼도 되는 값(웹앱 식별자).
      · CDN/네트워크 불가 시 이 모듈은 조용히 실패 → 앱은 로컬 전용으로 정상 동작. -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
            doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAU45BeA5XwczM5BhpStjcQRqzdtsokE-Q",
@@ -1343,6 +1345,9 @@ window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurem
 
   try{
     const app = initializeApp(firebaseConfig);
+    // 익명 인증 시도 — 익명 로그인이 콘솔에서 켜져 있으면 서버 요청에 토큰이 자동 첨부됨.
+    // 아직 안 켜져 있어도(또는 실패해도) 열린 규칙에선 동기화가 그대로 동작 → 안전.
+    try{ signInAnonymously(getAuth(app)).catch(()=>{}); }catch(e){}
     // 오프라인 지속성 + 다중 탭 지원
     const fdb = initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
