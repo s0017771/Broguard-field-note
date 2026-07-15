@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BRG 엔지니어링</title>
+<style>
+  :root{
+    --navy:#1f3a5f; --navy-deep:#16293f; --steel:#2b6cb0; --steel-soft:#e8f0f9;
+    --ink:#243244; --muted:#6b7a8d; --line:#dde3ea; --paper:#ffffff; --bg:#f4f6f9;
+    --ok:#2f9e6f; --warn:#d64545; --warn-soft:#fdecec; --amber:#c98a12;
+    --sans:'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.5}
+  button{font-family:inherit;cursor:pointer}
+  .screen{display:none}
+  .screen.on{display:block}
+
+  /* 공통 헤더 */
+  .topbar{position:sticky;top:0;z-index:10;background:var(--navy);color:#eaf1f8;
+    padding:14px 16px;display:flex;align-items:center;gap:12px}
+  .topbar .brand{font-weight:800;letter-spacing:.02em;font-size:1.05rem}
+  .topbar .brand small{font-weight:600;opacity:.7;font-size:.72rem;margin-left:6px}
+  .topbar .back{background:rgba(255,255,255,.12);border:none;color:#eaf1f8;border-radius:9px;
+    padding:7px 12px;font-size:.85rem;font-weight:700}
+  .topbar .back:active{transform:scale(.97)}
+  .topbar .spacer{flex:1}
+  .topbar .stage{font-size:.68rem;font-weight:700;background:rgba(255,255,255,.14);
+    padding:4px 9px;border-radius:20px;opacity:.9}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 16px 60px}
+
+  /* 인덱스 카드 */
+  .hub-hd{text-align:center;padding:30px 16px 10px}
+  .hub-hd h1{font-size:1.7rem;font-weight:800;color:var(--navy);letter-spacing:.02em}
+  .hub-hd p{color:var(--muted);font-size:.9rem;margin-top:7px}
+  .card{display:flex;align-items:center;gap:16px;background:var(--paper);border:1px solid var(--line);
+    border-radius:16px;padding:20px 18px;margin-bottom:14px;text-decoration:none;color:inherit;
+    transition:border-color .15s,box-shadow .15s,transform .07s}
+  .card:hover{border-color:var(--steel);box-shadow:0 6px 20px rgba(43,108,176,.10)}
+  .card:active{transform:scale(.99)}
+  .card.soon{opacity:.62}
+  .card .ic{flex:0 0 56px;height:56px;border-radius:14px;background:var(--steel-soft);color:var(--steel);
+    display:flex;align-items:center;justify-content:center;font-size:1.7rem}
+  .card h2{font-size:1.12rem;font-weight:800}
+  .card h2 .tag{font-size:.66rem;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:2px}
+  .tag.live{background:var(--steel-soft);color:var(--steel)}
+  .tag.wait{background:#f0ede4;color:var(--amber)}
+  .card p{font-size:.82rem;color:var(--muted);margin-top:4px}
+
+  /* 프로젝트 리스트 */
+  .sec-title{font-size:.78rem;font-weight:800;color:var(--muted);letter-spacing:.08em;
+    text-transform:uppercase;margin:6px 2px 12px}
+  .proj{display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);
+    border-radius:14px;padding:18px 16px;margin-bottom:12px;width:100%;text-align:left}
+  .proj:hover{border-color:var(--steel)}
+  .proj:active{transform:scale(.99)}
+  .proj .pin{flex:0 0 44px;height:44px;border-radius:11px;background:var(--navy);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+  .proj .pt h3{font-size:1.02rem;font-weight:800}
+  .proj .pt p{font-size:.78rem;color:var(--muted);margin-top:3px}
+  .proj .chev{margin-left:auto;color:var(--muted);font-size:1.3rem}
+
+  /* 총괄 페이지 */
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 16px;margin-bottom:16px}
+  .panel h3{font-size:1rem;font-weight:800;color:var(--navy);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .panel h3 .dot{width:8px;height:8px;border-radius:50%;background:var(--steel)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.86rem}
+  .kv dt{color:var(--muted);font-weight:700;white-space:nowrap}
+  .kv dd{color:var(--ink)}
+  .goal{background:var(--steel-soft);border-radius:10px;padding:12px 14px;font-size:.86rem;color:var(--navy);margin-top:12px;line-height:1.6}
+  .goal b{font-weight:800}
+
+  /* 그래프 자리(placeholder) */
+  .graph-ph{background:repeating-linear-gradient(45deg,#f7f9fc,#f7f9fc 12px,#f1f4f8 12px,#f1f4f8 24px);
+    border:1px dashed var(--line);border-radius:12px;height:180px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;color:var(--muted);gap:6px;text-align:center}
+  .graph-ph .big{font-size:1.6rem}
+  .graph-ph .lb{font-size:.82rem;font-weight:700}
+  .graph-ph .sm{font-size:.72rem}
+
+  /* 계측 리스트(아코디언) */
+  .list-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .btn-new{background:var(--steel);color:#fff;border:none;border-radius:10px;padding:10px 15px;
+    font-size:.85rem;font-weight:800}
+  .btn-new:active{transform:scale(.97)}
+  .legend{font-size:.72rem;color:var(--muted);margin-bottom:8px}
+  .legend .chip{display:inline-block;padding:1px 7px;border-radius:12px;font-weight:700;margin-right:4px}
+  .chip.warn{background:var(--warn-soft);color:var(--warn)}
+
+  .acc{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:9px;background:var(--paper)}
+  .acc.alert{border-color:#f0b6b6}
+  .acc-hd{display:grid;grid-template-columns:34px 1fr auto 22px;gap:10px;align-items:center;
+    width:100%;background:none;border:none;padding:13px 14px;text-align:left}
+  .acc-hd:active{background:#fafbfc}
+  .acc-hd .seq{font-family:var(--mono);font-weight:800;color:var(--steel);font-size:.9rem}
+  .acc-hd .mid .d{font-size:.9rem;font-weight:800}
+  .acc-hd .mid .p{font-size:.74rem;color:var(--muted);margin-top:2px}
+  .acc-hd .vals{text-align:right;font-family:var(--mono);font-size:.82rem;font-weight:700;white-space:nowrap}
+  .acc-hd .vals .warnflag{color:var(--warn)}
+  .acc-hd .caret{color:var(--muted);transition:transform .18s;font-size:.9rem;text-align:center}
+  .acc.open .caret{transform:rotate(180deg)}
+  .acc-body{display:none;padding:0 14px 14px;border-top:1px solid var(--line)}
+  .acc.open .acc-body{display:block}
+  .acc-body .row{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.85rem;margin-top:12px}
+  .acc-body .row dt{color:var(--muted);font-weight:700;white-space:nowrap}
+  .measure-box{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .mcell{flex:1;min-width:130px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .mcell .lb{font-size:.7rem;color:var(--muted);font-weight:700}
+  .mcell .v{font-family:var(--mono);font-size:1.25rem;font-weight:800;margin-top:2px}
+  .mcell .cum{font-size:.74rem;font-weight:700;margin-top:2px}
+  .cum.up{color:var(--warn)} .cum.flat{color:var(--muted)}
+  .mcell.warn{border-color:#f0b6b6;background:var(--warn-soft)}
+  .note-box{margin-top:12px;background:#fbfcfd;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:.86rem;line-height:1.6}
+  .note-box .nl{font-size:.7rem;color:var(--muted);font-weight:800;letter-spacing:.05em;margin-bottom:4px}
+  .photo-ph{display:flex;gap:8px;margin-top:12px}
+  .photo-ph .ph{flex:1;aspect-ratio:4/3;border:1px dashed var(--line);border-radius:9px;background:#f7f9fc;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:.72rem;gap:3px}
+  .photo-ph .ph .ico{font-size:1.2rem}
+  .badge-alert{display:inline-block;background:var(--warn-soft);color:var(--warn);font-size:.68rem;
+    font-weight:800;padding:2px 8px;border-radius:20px;margin-top:8px}
+
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--navy-deep);
+    color:#fff;padding:12px 20px;border-radius:12px;font-size:.86rem;font-weight:600;z-index:50;
+    box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+  /* 모달(팝업) — 비밀번호 · 계측 입력 */
+  .overlay{position:fixed;inset:0;background:rgba(22,41,63,.5);z-index:40;display:none}
+  .overlay.show{display:block}
+  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:45;
+    width:min(440px,calc(100vw - 32px));max-height:90vh;overflow:auto;background:var(--paper);
+    border-radius:16px;padding:22px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3);display:none}
+  .modal.show{display:block}
+  .modal h4{font-size:1.15rem;font-weight:800;color:var(--navy);margin-bottom:4px}
+  .modal .msub{font-size:.83rem;color:var(--muted);margin-bottom:16px;line-height:1.5}
+  .modal label{display:block;font-size:.78rem;font-weight:800;color:var(--ink);margin:14px 0 5px}
+  .modal label .auto{font-weight:600;color:var(--muted);font-size:.72rem;margin-left:6px}
+  .fi{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px 13px;font-size:.95rem;
+    font-family:var(--sans);color:var(--ink);background:#fff}
+  .fi:focus{outline:none;border-color:var(--steel);box-shadow:0 0 0 3px var(--steel-soft)}
+  textarea.fi{resize:vertical;line-height:1.55}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .pw{width:100%;text-align:center;font-family:var(--mono);font-size:1.8rem;letter-spacing:.6em;
+    padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .pw:focus{outline:none;border-color:var(--steel);box-shadow:0 0 0 3px var(--steel-soft)}
+  .cumhint{font-size:.8rem;color:var(--muted);margin-top:10px;min-height:1.2em}
+  .cumhint b{color:var(--steel);font-family:var(--mono)}
+  .cumhint .w{color:var(--warn);font-weight:800}
+  .photo-stage{margin-top:14px;font-size:.76rem;color:var(--muted);background:#eef1f5;border-radius:9px;padding:9px 12px}
+  .err{color:var(--warn);font-size:.8rem;font-weight:700;margin-top:10px;min-height:1.1em}
+  .mbtns{display:flex;gap:10px;margin-top:18px}
+  .mbtn{flex:1;border:none;border-radius:11px;padding:13px;font-size:.92rem;font-weight:800;
+    background:var(--steel);color:#fff}
+  .mbtn:active{transform:scale(.98)}
+  .mbtn.ghost{background:#eef1f5;color:var(--ink)}
+  .lockchip{font-size:.66rem;font-weight:800;background:rgba(255,255,255,.14);color:#eaf1f8;
+    padding:3px 9px;border-radius:20px}
+
+  footer{text-align:center;color:#a4afbd;font-size:.72rem;padding:10px 0 26px}
+  .stagenote{font-size:.72rem;color:var(--muted);background:#eef1f5;border-radius:8px;padding:7px 11px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ 계측 메인: 프로젝트 리스트 (진입 화면) ═══════════ -->
+<section class="screen on" id="screen-main">
+  <div class="topbar">
+    <button class="back" onclick="location.href='index.html'">‹ 허브</button>
+    <span class="brand">BRG 계측</span><span class="spacer"></span><span class="stage">프로젝트</span>
+  </div>
+  <div class="wrap">
+    <p class="sec-title">계측 프로젝트</p>
+    <div id="proj-list"></div>
+    <div class="stagenote">프로젝트를 눌러 총괄 페이지에서 <b>＋ 새 측정</b>을 입력하세요. (프로젝트 추가는 이후 단계)</div>
+  </div>
+</section>
+
+<!-- ═══════════ 총괄 페이지 ═══════════ -->
+<section class="screen" id="screen-summary">
+  <div class="topbar">
+    <button class="back" onclick="go('screen-main')">‹ 프로젝트</button>
+    <span class="brand">계측 총괄</span><span class="spacer"></span><span class="stage">총괄</span>
+  </div>
+  <div class="wrap">
+    <!-- 1) 개략 현황 + 계측 목표 -->
+    <div class="panel">
+      <h3><span class="dot"></span><span id="sum-name">—</span></h3>
+      <dl class="kv" id="sum-kv"></dl>
+      <div class="goal" id="sum-goal"></div>
+    </div>
+
+    <!-- 2) 추세 그래프 (자리만) -->
+    <div class="panel">
+      <h3><span class="dot"></span>추세 그래프</h3>
+      <div class="graph-ph">
+        <div class="big">📉</div>
+        <div class="lb">측점별 이격·단차 추세 곡선</div>
+        <div class="sm">기준선 · 임계값(누적 10mm) 표시 — 3단계에서 구현</div>
+      </div>
+    </div>
+
+    <!-- 3) 계측 리스트 (아코디언) -->
+    <div class="panel">
+      <div class="list-hd">
+        <h3 style="margin:0"><span class="dot"></span>계측 리스트</h3>
+        <button class="btn-new" onclick="newMeasurement()">＋ 새 측정</button>
+      </div>
+      <div class="legend">항목을 누르면 상세가 펼쳐집니다 · 다시 누르면 접힙니다 &nbsp;|&nbsp; <span class="chip warn">주의</span> 기준값 대비 누적 10mm 이상</div>
+      <div id="meas-list"></div>
+    </div>
+  </div>
+  <footer>BRG Engineering · 1차 로컬 버전 (샘플 데이터)</footer>
+</section>
+
+<!-- ═══════════ 모달: 비밀번호 인증 ═══════════ -->
+<div class="overlay" id="overlay" onclick="closeModals()"></div>
+<div class="modal" id="modal-pw">
+  <h4>🔒 입력 인증</h4>
+  <p class="msub">계측 <b>입력</b>은 담당 엔지니어만 가능합니다. 4자리 비밀번호를 입력하세요.<br>(열람·그래프는 비밀번호 없이 누구나 가능합니다.)</p>
+  <input id="pw-input" class="pw" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
+  <div class="err" id="pw-err"></div>
+  <div class="mbtns">
+    <button class="mbtn ghost" onclick="closeModals()">취소</button>
+    <button class="mbtn" onclick="checkPw()">확인</button>
+  </div>
+</div>
+
+<!-- ═══════════ 모달: 계측 입력 폼 ═══════════ -->
+<div class="modal" id="modal-form">
+  <h4>＋ 새 계측 입력</h4>
+  <p class="msub" id="form-proj">—</p>
+  <label>날짜·시간 <span class="auto">자동 기록</span></label>
+  <input id="f-dt" class="fi" readonly>
+  <label>측점 <span class="auto">수동 선택 (QR 자동선택은 6단계)</span></label>
+  <select id="f-point" class="fi" onchange="onPointChange()"></select>
+  <div class="two">
+    <div><label>이격(폭) <span class="auto">mm</span></label><input id="f-gap" class="fi" type="number" step="0.1" inputmode="decimal" oninput="updateCumHint()" placeholder="0.0"></div>
+    <div><label>단차(침하) <span class="auto">mm</span></label><input id="f-step" class="fi" type="number" step="0.1" inputmode="decimal" oninput="updateCumHint()" placeholder="0.0"></div>
+  </div>
+  <div class="cumhint" id="f-cum"></div>
+  <label>엔지니어 기록 <span class="auto">현재 상황 · 진행 판단 · 최근 강우 등 자유 기록</span></label>
+  <textarea id="f-note" class="fi" rows="4" placeholder="예: 6/1 집중호우 후 계측. 단차 진행 뚜렷. 배수 유공관 주변 관찰 필요..."></textarea>
+  <div class="photo-stage">🖼️ 사진(전경·폭·단차) 첨부는 4단계에서 구현됩니다.</div>
+  <div class="err" id="f-err"></div>
+  <div class="mbtns">
+    <button class="mbtn ghost" onclick="closeModals()">취소</button>
+    <button class="mbtn" onclick="saveMeasurement()">저장</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════
+   데이터 모델 (JSON 표준 — 3차 백엔드 이전을 고려한 구조)
+   · project 안에 baseline / threshold / points / measurements
+   · 계측 항목은 metrics 배열로 정의해 향후 확장(균열폭·기울기 등) 대비
+   ══════════════════════════════════════════════════════════ */
+const DB = {
+  schemaVersion: 1,
+  projects: [
+    {
+      id: 'nusan-rw-01',
+      name: '누산배수교 접속부 자전거도로 보강토옹벽',
+      facility: '누산배수교 접속부 자전거도로 보강토옹벽',
+      structure: '보강토옹벽 H=3.6m · 보강재 6단 · 저면 유공관 D150',
+      damage: '접속부 약 10cm 침하(단차), 경계부 약 3~4cm 이격',
+      goal: '이격·단차의 진행성 모니터링으로 <b>함몰 위험 조기 감지</b>. 초기 1~2주 간격, 안정 시 조정, 집중호우 후 수시 계측.',
+      period: '약 2개월 (발주처 제출용)',
+      thresholdMm: 10,                         // 기준값 대비 누적 경고 임계값
+      metrics: [                               // 확장 가능한 계측 항목 정의
+        { key: 'gap',  label: '이격(폭)', unit: 'mm' },
+        { key: 'step', label: '단차(침하)', unit: 'mm' }
+      ],
+      points: [
+        { id: 'P1', label: '측점 1 (접속부 중앙)' },
+        { id: 'P2', label: '측점 2 (경계 우측)' },
+        { id: 'P3', label: '측점 3 (경계 좌측)' },
+        { id: 'P4', label: '측점 4 (옹벽 상단)' }
+      ],
+      // 설치 당시 계측값 = 기준값(baseline)
+      baseline: {
+        P1: { gap: 32.0, step: 98.0 },
+        P2: { gap: 28.4, step: 41.0 },
+        P3: { gap: 30.1, step: 55.0 },
+        P4: { gap: 12.0, step: 8.0 }
+      },
+      measurements: [
+        { seq: 1, datetime: '2026-05-20 10:20', pointId: 'P1', gap: 32.0, step: 98.0,
+          engineer: '초기 계측 — 기준값 설정. KOBETO 크랙게이지 + 십자마커 설치 완료. 강우 없음, 노면 건조.' },
+        { seq: 2, datetime: '2026-05-27 09:40', pointId: 'P1', gap: 32.6, step: 98.4,
+          engineer: '변화 미미. 최근 강우 없음. 마커·게이지 상태 양호.' },
+        { seq: 3, datetime: '2026-06-03 11:05', pointId: 'P1', gap: 33.1, step: 99.2,
+          engineer: '소폭 진행. 6/1 집중호우(약 60mm) 이후 첫 계측. 배수 유공관 주변 관찰 필요.' },
+        { seq: 4, datetime: '2026-06-17 10:00', pointId: 'P2', gap: 28.4, step: 41.0,
+          engineer: '측점 2 초기 계측(기준값). 경계부 우측. 균열 진전 흔적은 아직 없음.' },
+        { seq: 5, datetime: '2026-07-01 15:30', pointId: 'P1', gap: 40.5, step: 108.0,
+          engineer: '강우 후 진행 뚜렷. 누적 단차 +10mm 도달 — 주의 요망. 발주처 보고 및 계측 주기 단축 검토.' }
+      ]
+    }
+  ]
+};
+
+/* ── 화면 전환 ── */
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id===id));
+  window.scrollTo(0,0);
+}
+let _t;
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(_t); _t=setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ── 프로젝트 리스트 ── */
+function renderProjects(){
+  const box=document.getElementById('proj-list'); box.innerHTML='';
+  DB.projects.forEach(p=>{
+    const n=p.measurements.length;
+    const b=document.createElement('button');
+    b.className='proj';
+    b.innerHTML=`<span class="pin">🏗️</span>
+      <span class="pt"><h3>${esc(p.name)}</h3><p>${esc(p.structure)} · 계측 ${n}건</p></span>
+      <span class="chev">›</span>`;
+    b.onclick=()=>openSummary(p.id);
+    box.appendChild(b);
+  });
+}
+
+/* ── 총괄 페이지 ── */
+let CUR=null;
+function openSummary(pid){
+  CUR=DB.projects.find(p=>p.id===pid); if(!CUR) return;
+  document.getElementById('sum-name').textContent=CUR.name;
+  document.getElementById('sum-kv').innerHTML=`
+    <dt>시설물</dt><dd>${esc(CUR.facility)}</dd>
+    <dt>구조</dt><dd>${esc(CUR.structure)}</dd>
+    <dt>손상</dt><dd>${esc(CUR.damage)}</dd>
+    <dt>측점</dt><dd>${CUR.points.length}개소</dd>
+    <dt>기간</dt><dd>${esc(CUR.period)}</dd>
+    <dt>경고 임계</dt><dd>기준값 대비 누적 ${CUR.thresholdMm}mm</dd>`;
+  document.getElementById('sum-goal').innerHTML=`<b>계측 목표</b> · ${CUR.goal}`;
+  renderMeasurements();
+  go('screen-summary');
+}
+
+function fmt(v){ return (Math.round(v*10)/10).toFixed(1); }
+function cumInfo(p, m){                       // 기준값 대비 누적 변화량
+  const base=p.baseline[m.pointId]||{gap:m.gap, step:m.step};
+  const dGap=m.gap-base.gap, dStep=m.step-base.step;
+  const alert = Math.abs(dGap)>=p.thresholdMm || Math.abs(dStep)>=p.thresholdMm;
+  return {base, dGap, dStep, alert};
+}
+function signed(x){ const v=Math.round(x*10)/10; return (v>0?'+':'')+v.toFixed(1); }
+
+function renderMeasurements(){
+  const box=document.getElementById('meas-list'); box.innerHTML='';
+  const p=CUR;
+  // 최신순 정렬
+  const rows=[...p.measurements].sort((a,b)=>b.datetime.localeCompare(a.datetime));
+  rows.forEach(m=>{
+    const pt=p.points.find(x=>x.id===m.pointId)||{label:m.pointId};
+    const c=cumInfo(p,m);
+    const el=document.createElement('div');
+    el.className='acc'+(c.alert?' alert':'');
+    el.innerHTML=`
+      <button class="acc-hd" type="button">
+        <span class="seq">#${m.seq}</span>
+        <span class="mid"><div class="d">${esc(m.datetime.slice(0,10))}</div><div class="p">${esc(pt.label)}</div></span>
+        <span class="vals">폭 ${fmt(m.gap)} · 단차 ${fmt(m.step)}<span class="warnflag">${c.alert?' ⚠':''}</span></span>
+        <span class="caret">▾</span>
+      </button>
+      <div class="acc-body">
+        <div class="measure-box">
+          ${mcell('이격(폭)', m.gap, c.dGap, c.base.gap, p.thresholdMm)}
+          ${mcell('단차(침하)', m.step, c.dStep, c.base.step, p.thresholdMm)}
+        </div>
+        ${c.alert?'<span class="badge-alert">⚠ 기준값 대비 누적 '+p.thresholdMm+'mm 이상 — 주의</span>':''}
+        <div class="note-box"><div class="nl">엔지니어 기록</div>${esc(m.engineer)}</div>
+        <div class="photo-ph">
+          <div class="ph"><span class="ico">🖼️</span>전경</div>
+          <div class="ph"><span class="ico">🖼️</span>폭</div>
+          <div class="ph"><span class="ico">🖼️</span>단차</div>
+        </div>
+        <div class="stagenote">사진 압축 저장은 4단계에서 구현됩니다.</div>
+      </div>`;
+    const hd=el.querySelector('.acc-hd');
+    hd.addEventListener('click',()=>el.classList.toggle('open'));   // 클릭 → 펼침/접힘
+    box.appendChild(el);
+  });
+}
+function mcell(label, val, d, base, th){
+  const warn = Math.abs(d)>=th;
+  const cls = Math.abs(d)>=0.05 ? (d>0?'up':'flat') : 'flat';
+  return `<div class="mcell${warn?' warn':''}">
+    <div class="lb">${label}</div>
+    <div class="v">${fmt(val)}<span style="font-size:.7rem;font-weight:700"> mm</span></div>
+    <div class="cum ${cls}">기준 ${fmt(base)} → 누적 ${signed(d)}mm</div>
+  </div>`;
+}
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* ══════════════════════════════════════════════════════════
+   로컬 저장 (1차 방식) — 브라우저 localStorage.
+   구조는 JSON 표준이라 5단계(파일 내보내기)·3차(백엔드) 이전에 그대로 재활용.
+   ══════════════════════════════════════════════════════════ */
+const LS_KEY='brg-monitoring-v1';
+function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({schemaVersion:DB.schemaVersion, projects:DB.projects})); }catch(e){ toast('저장 실패: 브라우저 용량 확인 필요'); } }
+function loadSaved(){
+  try{ const raw=localStorage.getItem(LS_KEY);
+    if(raw){ const d=JSON.parse(raw); if(d&&Array.isArray(d.projects)&&d.projects.length){ DB.projects=d.projects; } }
+  }catch(e){/* 손상 시 샘플 유지 */}
+}
+if(new URLSearchParams(location.search).get('reset')==='1') localStorage.removeItem(LS_KEY);
+
+/* ══════════════════════════════════════════════════════════
+   계측 입력 (2단계) — 비밀번호 게이트 + 팝업 폼
+   · PASSCODE는 "실수 방지" 수준(프론트 코드 내). 진짜 권한분리는 3차 백엔드.
+   ══════════════════════════════════════════════════════════ */
+const PASSCODE='1122';            // 담당 엔지니어 입력용 (실수 방지 수준)
+let unlocked=false;               // 세션 중 1회 인증하면 유지(새로고침 시 초기화)
+
+function newMeasurement(){
+  if(!CUR){ toast('프로젝트를 먼저 선택하세요'); return; }
+  if(unlocked){ openForm(); } else { openPw(); }
+}
+function openPw(){
+  document.getElementById('pw-err').textContent='';
+  const i=document.getElementById('pw-input'); i.value='';
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('modal-pw').classList.add('show');
+  setTimeout(()=>i.focus(),50);
+}
+function checkPw(){
+  const v=document.getElementById('pw-input').value.trim();
+  if(v===PASSCODE){ unlocked=true; closeModals(); openForm(); }
+  else { document.getElementById('pw-err').textContent='비밀번호가 올바르지 않습니다.'; }
+}
+function pad(n){ return String(n).padStart(2,'0'); }
+function nowStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function fillPointSelect(selId){
+  const sel=document.getElementById('f-point');
+  sel.innerHTML=CUR.points.map(p=>`<option value="${p.id}">${esc(p.label)}</option>`).join('')
+    +'<option value="__add__">＋ 새 측점 추가…</option>';
+  if(selId) sel.value=selId;
+}
+function onPointChange(){
+  const sel=document.getElementById('f-point');
+  if(sel.value==='__add__'){                       // 측점은 언제든 추가 가능 (시작 시 확정 불필요)
+    const name=(prompt('새 측점 이름을 입력하세요 (예: 측점 5 (배수구 옆))')||'').trim();
+    if(name){
+      let n=1; while(CUR.points.some(p=>p.id==='P'+n)) n++;
+      const np={id:'P'+n, label:name};
+      CUR.points.push(np); persist(); fillPointSelect(np.id);
+    } else { fillPointSelect(CUR.points[0]?.id); }
+  }
+  updateCumHint();
+}
+function openForm(){
+  fillPointSelect();
+  document.getElementById('form-proj').textContent=CUR.name;
+  document.getElementById('f-dt').value=nowStr();
+  document.getElementById('f-gap').value='';
+  document.getElementById('f-step').value='';
+  document.getElementById('f-note').value='';
+  document.getElementById('f-err').textContent='';
+  updateCumHint();
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('modal-form').classList.add('show');
+}
+function updateCumHint(){                        // 입력 중 기준값 대비 누적을 실시간 안내
+  const pid=document.getElementById('f-point').value;
+  const base=CUR.baseline[pid];
+  const g=parseFloat(document.getElementById('f-gap').value);
+  const s=parseFloat(document.getElementById('f-step').value);
+  const el=document.getElementById('f-cum');
+  if(!base){ el.innerHTML='이 측점의 <b>첫 계측</b>이라 이 값이 <b>기준값</b>이 됩니다.'; return; }
+  const parts=[];
+  if(!isNaN(g)){ const d=g-base.gap; const w=Math.abs(d)>=CUR.thresholdMm; parts.push(`폭 <b>${signed(d)}mm</b>${w?' <span class="w">⚠</span>':''}`); }
+  if(!isNaN(s)){ const d=s-base.step; const w=Math.abs(d)>=CUR.thresholdMm; parts.push(`단차 <b>${signed(d)}mm</b>${w?' <span class="w">⚠</span>':''}`); }
+  el.innerHTML = parts.length ? ('기준값 대비 누적 — '+parts.join(' · ')) : '';
+}
+function saveMeasurement(){
+  const err=document.getElementById('f-err');
+  const pid=document.getElementById('f-point').value;
+  const g=parseFloat(document.getElementById('f-gap').value);
+  const s=parseFloat(document.getElementById('f-step').value);
+  if(isNaN(g)||isNaN(s)){ err.textContent='이격(폭)과 단차(침하)를 숫자로 입력하세요.'; return; }
+  if(g<0||s<0){ err.textContent='음수는 입력할 수 없습니다.'; return; }
+  const nextSeq=CUR.measurements.reduce((m,x)=>Math.max(m,x.seq),0)+1;
+  const m={ seq:nextSeq, datetime:document.getElementById('f-dt').value, pointId:pid,
+    gap:Math.round(g*10)/10, step:Math.round(s*10)/10,
+    engineer:document.getElementById('f-note').value.trim()||'(기록 없음)' };
+  if(!CUR.baseline[pid]){ CUR.baseline[pid]={gap:m.gap, step:m.step}; }  // 첫 계측 = 기준값
+  CUR.measurements.push(m);
+  persist();
+  renderMeasurements();
+  renderProjects();                              // 리스트 건수 갱신
+  closeModals();
+  toast(`#${nextSeq} 계측이 저장되었습니다`);
+}
+function closeModals(){
+  document.getElementById('overlay').classList.remove('show');
+  document.querySelectorAll('.modal').forEach(m=>m.classList.remove('show'));
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeModals();
+  if(e.key==='Enter' && document.getElementById('modal-pw').classList.contains('show')) checkPw();
+});
+
+/* 시작 */
+loadSaved();
+renderProjects();
+
+/* 테스트용 훅 */
+window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, get current(){return CUR;},
+  get unlocked(){return unlocked;}, PASSCODE };
+</script>
+</body>
+</html>
