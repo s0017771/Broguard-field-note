@@ -184,6 +184,20 @@
   #lightbox{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;padding:16px}
   #lightbox.show{display:flex}
   #lightbox img{max-width:100%;max-height:92vh;border-radius:8px}
+  /* 측점 QR */
+  .qr-proj{font-weight:800;color:var(--navy);font-size:1rem;margin-bottom:12px}
+  #qr-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+  .qr-card{border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center;break-inside:avoid}
+  .qr-card canvas{width:100%;height:auto;image-rendering:pixelated}
+  .qr-card .qt{font-weight:800;font-size:.95rem;margin-top:8px;color:var(--ink)}
+  .qr-card .qs{font-size:.78rem;color:var(--muted);margin-top:2px}
+  @media print {
+    body > *:not(#modal-qr){ display:none !important; }
+    #modal-qr{ position:static; display:block; box-shadow:none; max-height:none; width:auto; padding:0; }
+    .noprint{ display:none !important; }
+    #qr-list{ grid-template-columns:repeat(3,1fr); gap:10px; }
+    .qr-card{ border:1px solid #999; }
+  }
   .badge-alert{display:inline-block;background:var(--warn-soft);color:var(--warn);font-size:.68rem;
     font-weight:800;padding:2px 8px;border-radius:20px;margin-top:8px}
 
@@ -369,6 +383,17 @@
   </div>
 </div>
 
+<!-- ═══════════ 모달: 측점 QR (생성·인쇄) ═══════════ -->
+<div class="modal wide" id="modal-qr">
+  <h4 class="noprint">📱 측점 QR</h4>
+  <p class="msub noprint">각 측점의 QR을 인쇄·코팅해 크랙게이지 옆에 부착하세요. QR을 스캔하면 그 측점 계측화면으로 바로 들어갑니다(입력 시 비밀번호). <b>5×5cm 이상</b> 권장.</p>
+  <div id="qr-print"><div id="qr-proj" class="qr-proj"></div><div id="qr-list"></div></div>
+  <div class="mbtns noprint">
+    <button class="mbtn ghost" onclick="closeModals()">닫기</button>
+    <button class="mbtn" onclick="window.print()">🖨 인쇄</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div id="lightbox" onclick="this.classList.remove('show')"><img id="lightbox-img" alt="사진"></div>
 
@@ -472,7 +497,7 @@ function openSummary(pid){
     <dt>시설물</dt><dd>${esc(CUR.facility)}</dd>
     <dt>구조</dt><dd>${esc(CUR.structure)}</dd>
     <dt>손상</dt><dd>${esc(CUR.damage)}</dd>
-    <dt>측점</dt><dd>${CUR.points.length}개소 <button class="mini-btn" onclick="openPointsManager()">측점 관리</button></dd>
+    <dt>측점</dt><dd>${CUR.points.length}개소 <button class="mini-btn" onclick="openPointsManager()">측점 관리</button> <button class="mini-btn" onclick="openQR()">측점 QR</button></dd>
     <dt>계측 방법</dt><dd>이격=크랙게이지 · 단차=레벨/직선자</dd>
     <dt>주기</dt><dd>${esc(CUR.period)}</dd>
     <dt>경고 임계</dt><dd>기준값 대비 누적 ${CUR.thresholdMm}mm</dd>`;
@@ -709,6 +734,147 @@ function mcell(label, val, d, base, th){
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 /* ══════════════════════════════════════════════════════════
+   QR 코드 생성기 (자체 구현 · 외부 라이브러리 없음 · 오프라인)
+   byte 모드, ECC 레벨 M, 버전 자동 선택(1~10). encode(text)→{size, get(x,y)}
+   ══════════════════════════════════════════════════════════ */
+const QR=(function(){
+  const EXP=new Array(256), LOG=new Array(256);
+  (function(){ let x=1; for(let i=0;i<255;i++){ EXP[i]=x; LOG[x]=i; x<<=1; if(x&0x100) x^=0x11d; } })();
+  const gmul=(a,b)=> (a===0||b===0)?0:EXP[(LOG[a]+LOG[b])%255];
+  function rsGen(deg){ let g=[1]; for(let i=0;i<deg;i++){ const r=new Array(g.length+1).fill(0);
+    for(let j=0;j<g.length;j++){ r[j]^=g[j]; r[j+1]^=gmul(g[j],EXP[i]); } g=r; } return g; }
+  function rsEnc(data, ecLen){ const gen=rsGen(ecLen); const ecc=new Array(ecLen).fill(0);
+    for(let i=0;i<data.length;i++){ const f=data[i]^ecc[0];
+      for(let j=0;j<ecLen-1;j++) ecc[j]=ecc[j+1]^gmul(gen[j+1],f);
+      ecc[ecLen-1]=gmul(gen[ecLen],f); } return ecc; }
+  // 레벨 M 테이블 (버전 1~10)
+  const ECC_PB=[-1,10,16,26,18,24,16,18,22,22,26];   // ecc codewords / block
+  const NBLK =[-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5];   // blocks
+  function rawModules(v){ let r=(16*v+128)*v+64; if(v>=2){ const n=Math.floor(v/7)+2; r-=(25*n-10)*n-55; if(v>=7) r-=36; } return r; }
+  function dataCW(v){ return Math.floor(rawModules(v)/8) - ECC_PB[v]*NBLK[v]; }
+  function alignPos(v){ if(v===1) return []; const n=Math.floor(v/7)+2;
+    const step=Math.ceil((v*4+4)/(n*2-2))*2; const res=[6];
+    for(let pos=v*4+10; res.length<n; pos-=step) res.splice(1,0,pos); return res; }
+  function utf8(s){ const o=[]; for(const ch of unescape(encodeURIComponent(s))) o.push(ch.charCodeAt(0)); return o; }
+
+  function encode(text, forceMask){
+    const bytes=utf8(text);
+    let ver=0;
+    for(let v=1;v<=10;v++){ const cnt=v<10?8:16; const need=4+cnt+bytes.length*8;
+      if(bytes.length<(1<<cnt) && need<=dataCW(v)*8){ ver=v; break; } }
+    if(!ver) throw new Error('데이터가 너무 깁니다');
+    const cntBits=ver<10?8:16, ndc=dataCW(ver);
+    // 비트스트림
+    const bits=[]; const put=(val,len)=>{ for(let i=len-1;i>=0;i--) bits.push((val>>i)&1); };
+    put(4,4); put(bytes.length,cntBits); bytes.forEach(b=>put(b,8));
+    const cap=ndc*8; for(let i=0;i<4 && bits.length<cap;i++) bits.push(0);
+    while(bits.length%8) bits.push(0);
+    const cw=[]; for(let i=0;i<bits.length;i+=8){ let b=0; for(let j=0;j<8;j++) b=(b<<1)|bits[i+j]; cw.push(b); }
+    for(let pad=0; cw.length<ndc; pad++) cw.push(pad%2?0x11:0xEC);
+    // 블록 분할 + RS + 인터리브 (블록 길이는 전체 코드워드 기준)
+    const nb=NBLK[ver], ecLen=ECC_PB[ver];
+    const totalCW=Math.floor(rawModules(ver)/8);
+    const numShort=nb-(totalCW%nb), shortLen=Math.floor(totalCW/nb);
+    const dblocks=[], eblocks=[]; let off=0;
+    for(let i=0;i<nb;i++){ const dcount=(i<numShort?shortLen:shortLen+1)-ecLen;
+      const blk=cw.slice(off,off+dcount); off+=dcount; dblocks.push(blk); eblocks.push(rsEnc(blk,ecLen)); }
+    const final=[];
+    const maxD=Math.max(...dblocks.map(b=>b.length));
+    for(let i=0;i<maxD;i++) for(let b=0;b<nb;b++) if(i<dblocks[b].length) final.push(dblocks[b][i]);
+    for(let i=0;i<ecLen;i++) for(let b=0;b<nb;b++) final.push(eblocks[b][i]);
+    // 데이터 비트열
+    const dataBits=[]; final.forEach(b=>{ for(let i=7;i>=0;i--) dataBits.push((b>>i)&1); });
+
+    // 매트릭스
+    const size=ver*4+17;
+    const mod=Array.from({length:size},()=>new Array(size).fill(null)); // null=미설정
+    const fun=Array.from({length:size},()=>new Array(size).fill(false)); // 기능 패턴
+    function setF(x,y,v){ mod[y][x]=v; fun[y][x]=true; }
+    function finder(ox,oy){ for(let dy=-1;dy<=7;dy++) for(let dx=-1;dx<=7;dx++){ const x=ox+dx,y=oy+dy;
+      if(x<0||y<0||x>=size||y>=size) continue; const d=Math.max(Math.abs(dx-3),Math.abs(dy-3));
+      setF(x,y,(d!==2 && d!==4)); } }
+    finder(0,0); finder(size-7,0); finder(0,size-7);
+    for(let i=8;i<size-8;i++){ setF(i,6,i%2===0); setF(6,i,i%2===0); } // 타이밍
+    const ap=alignPos(ver);
+    ap.forEach(cy=>ap.forEach(cx=>{ if((cx<=8&&cy<=8)||(cx>=size-9&&cy<=8)||(cx<=8&&cy>=size-9)) return;
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){ const d=Math.max(Math.abs(dx),Math.abs(dy));
+        setF(cx+dx,cy+dy, d!==1); } }));
+    setF(8,size-8,true); // 다크 모듈
+    // 포맷/버전 영역 예약 — 이미 기능패턴(타이밍·다크)인 칸은 건너뜀
+    const reserve=(x,y)=>{ if(x<0||y<0||x>=size||y>=size) return; if(!fun[y][x]){ mod[y][x]=false; fun[y][x]=true; } };
+    for(let i=0;i<=8;i++){ reserve(8,i); reserve(i,8); }               // 좌상단 파인더 둘레
+    for(let i=0;i<8;i++){ reserve(8,size-1-i); reserve(size-1-i,8); }  // 우상단·좌하단
+    if(ver>=7){ for(let i=0;i<18;i++){ const a=Math.floor(i/3), c=i%3;
+      reserve(size-11+c,a); reserve(a,size-11+c); } }
+
+    // 데이터 배치 (지그재그)
+    let di=0, up=true;
+    for(let col=size-1; col>0; col-=2){ if(col===6) col=5;
+      for(let r=0;r<size;r++){ const y=up?size-1-r:r;
+        for(let c=0;c<2;c++){ const x=col-c; if(fun[y][x]) continue;
+          mod[y][x]= di<dataBits.length ? !!dataBits[di] : false; di++; } }
+      up=!up; }
+
+    // 마스크 적용 함수
+    function maskFn(m,x,y){ switch(m){
+      case 0:return (x+y)%2===0; case 1:return y%2===0; case 2:return x%3===0;
+      case 3:return (x+y)%3===0; case 4:return (Math.floor(y/2)+Math.floor(x/3))%2===0;
+      case 5:return (x*y)%2+(x*y)%3===0; case 6:return ((x*y)%2+(x*y)%3)%2===0;
+      case 7:return ((x+y)%2+(x*y)%3)%2===0; } }
+    function drawFormat(mask, target){
+      const eclF=0; // 레벨 M
+      let d=(eclF<<3)|mask, rem=d;
+      for(let i=0;i<10;i++) rem=(rem<<1)^(((rem>>9)&1)*0x537);
+      const bits=((d<<10)|rem)^0x5412;   // 15비트
+      const bit=i=>((bits>>i)&1)===1;   // target[row][col]
+      // 사본1 (좌상단 파인더 둘레)
+      for(let i=0;i<=5;i++) target[i][8]=bit(i);              // col8, row 0..5
+      target[7][8]=bit(6); target[8][8]=bit(7); target[8][7]=bit(8);
+      for(let i=9;i<15;i++) target[8][14-i]=bit(i);           // row8, col 5..0
+      // 사본2 (우상단·좌하단 파인더 옆)
+      for(let i=0;i<8;i++) target[8][size-1-i]=bit(i);        // row8, 우측
+      for(let i=8;i<15;i++) target[size-15+i][8]=bit(i);      // col8, 하단
+    }
+    function drawVersion(target){ if(ver<7) return; let rem=ver;
+      for(let i=0;i<12;i++) rem=(rem<<1)^(((rem>>11)&1)*0x1f25);
+      const bits=(ver<<12)|rem;
+      for(let i=0;i<18;i++){ const b=((bits>>i)&1)===1; const a=Math.floor(i/3), c=i%3;
+        target[a][size-11+c]=b; target[size-11+c][a]=b; } }
+    function penalty(t){
+      let p=0;
+      for(let y=0;y<size;y++){ let run=1; for(let x=1;x<size;x++){ if(t[y][x]===t[y][x-1]){ run++; if(run===5)p+=3; else if(run>5)p++; } else run=1; } }
+      for(let x=0;x<size;x++){ let run=1; for(let y=1;y<size;y++){ if(t[y][x]===t[y-1][x]){ run++; if(run===5)p+=3; else if(run>5)p++; } else run=1; } }
+      for(let y=0;y<size-1;y++) for(let x=0;x<size-1;x++){ const v=t[y][x];
+        if(v===t[y][x+1]&&v===t[y+1][x]&&v===t[y+1][x+1]) p+=3; }
+      let dark=0; t.forEach(r=>r.forEach(v=>{ if(v)dark++; }));
+      const ratio=Math.abs(dark*100/(size*size)-50); p+=Math.floor(ratio/5)*10;
+      return p;
+    }
+    // 8개 마스크 시도 → 최소 페널티
+    let best=null, bestP=1e9, bestMask=0;
+    for(let m=0;m<8;m++){
+      if(forceMask!=null && m!==forceMask) continue;
+      const t=mod.map(r=>r.slice());
+      for(let y=0;y<size;y++) for(let x=0;x<size;x++){ if(!fun[y][x] && maskFn(m,x,y)) t[y][x]=!t[y][x]; }
+      drawFormat(m,t); drawVersion(t);
+      const p=penalty(t); if(p<bestP){ bestP=p; best=t; bestMask=m; }
+    }
+    return { size, get:(x,y)=>!!best[y][x] };
+  }
+  return { encode };
+})();
+
+/* QR을 캔버스에 렌더 */
+function drawQR(canvas, text, px){
+  const qr=QR.encode(text); const n=qr.size; const q=4; // quiet zone
+  const scale=Math.max(1, Math.floor(px/(n+q*2)));
+  const dim=(n+q*2)*scale; canvas.width=dim; canvas.height=dim;
+  const ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,dim,dim);
+  ctx.fillStyle='#000';
+  for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(qr.get(x,y)) ctx.fillRect((x+q)*scale,(y+q)*scale,scale,scale);
+}
+
+/* ══════════════════════════════════════════════════════════
    로컬 저장 (1차 방식) — 브라우저 localStorage.
    구조는 JSON 표준이라 5단계(파일 내보내기)·3차(백엔드) 이전에 그대로 재활용.
    ══════════════════════════════════════════════════════════ */
@@ -811,8 +977,9 @@ function onPointChange(){
   }
   updateCumHint();
 }
-function openForm(){
+function openForm(presetPid){
   fillPointSelect();
+  if(presetPid && CUR.points.some(p=>p.id===presetPid)) document.getElementById('f-point').value=presetPid; // QR로 온 측점 자동 선택
   document.getElementById('form-proj').textContent=CUR.name;
   document.getElementById('f-dt').value=nowStr();
   document.getElementById('f-gap').value='';
@@ -957,6 +1124,25 @@ function deleteManagedPoint(id){
 }
 function finishPoints(){ const id=CUR.id; closeModals(); openSummary(id); }   // 총괄 새로 렌더
 
+/* ── 측점 QR 생성·인쇄 (6단계) ── */
+function qrUrl(pid){ return location.origin+location.pathname+'?project='+encodeURIComponent(CUR.id)+'&point='+encodeURIComponent(pid); }
+function openQR(){
+  if(!CUR) return;
+  document.getElementById('qr-proj').textContent=CUR.name+' · 측점 QR';
+  const box=document.getElementById('qr-list'); box.innerHTML='';
+  CUR.points.forEach(pt=>{
+    const card=document.createElement('div'); card.className='qr-card';
+    const cv=document.createElement('canvas');
+    try{ drawQR(cv, qrUrl(pt.id), 260); }catch(e){ /* 무시 */ }
+    card.appendChild(cv);
+    const t=document.createElement('div'); t.className='qt'; t.textContent='측점 '+(pt.no!=null?pt.no:'');
+    const s=document.createElement('div'); s.className='qs'; s.textContent=pt.label;
+    card.appendChild(t); card.appendChild(s); box.appendChild(card);
+  });
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('modal-qr').classList.add('show');
+}
+
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape') closeModals();
   if(e.key==='Enter' && document.getElementById('modal-pw').classList.contains('show')) checkPw();
@@ -973,9 +1159,22 @@ document.getElementById('photo-input').addEventListener('change', async e=>{
 });
 renderProjects();
 
+/* QR 스캔 진입: ?project=&point= → 해당 프로젝트 총괄 + 그 측점 계측 입력(비밀번호) */
+(function(){
+  const sp=new URLSearchParams(location.search);
+  const pj=sp.get('project'), pt=sp.get('point');
+  if(!pj) return;
+  const proj=DB.projects.find(x=>x.id===pj); if(!proj) return;
+  openSummary(pj);
+  if(pt && proj.points.some(x=>x.id===pt)){
+    if(chartState.scope!=='all'){} chartState.scope=pt; fillChartPointSelect(); applyChartMode(); renderChart(); renderMeasurements();
+    requireUnlock(()=>openForm(pt));   // QR로 온 측점 자동 선택 + 비밀번호
+  }
+})();
+
 /* 테스트용 훅 */
 window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, get current(){return CUR;},
-  get unlocked(){return unlocked;}, PASSCODE, exportData, importData };
+  get unlocked(){return unlocked;}, PASSCODE, exportData, importData, openQR, qrUrl };
 </script>
 </body>
 </html>
