@@ -1,4 +1,4 @@
-const CACHE_NAME = 'field-note-v12';
+const CACHE_NAME = 'field-note-v13';
 // 단일 HTML 구조 — pdf.js/JSZip/로고는 각 HTML에 인라인되어 별도 캐시 불필요
 // 루트(index.html)는 BRG 엔지니어링 허브, field-note.html은 현장조사노트, monitoring.html은 계측
 const ASSETS = [
@@ -30,6 +30,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
+
+  // 교차 출처(Firebase·gstatic 등)는 서비스워커가 관여하지 않음 — 실시간 동기화 방해 방지
+  if (new URL(req.url).origin !== self.location.origin) return;
 
   // HTML 문서는 항상 네트워크 우선 (최신 배포 즉시 반영)
   if (req.mode === 'navigate' || req.destination === 'document') {
