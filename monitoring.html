@@ -290,7 +290,7 @@
     <div class="stagenote">전체 계측 데이터(사진 포함)를 <b>JSON 파일 하나</b>로 저장/복원합니다. 발주처 전달·백업용. 파일을 불러오면 현재 데이터를 그 파일 내용으로 교체합니다.</div>
     <div class="stagenote" id="storage-note"></div>
 
-    <p class="sec-title" style="margin-top:24px">실시간 공유 (백엔드)</p>
+    <p class="sec-title" style="margin-top:24px">실시간 공유 (백엔드) · <span id="build-tag2"></span></p>
     <div class="stagenote" id="sync-note">실시간 공유 — 서버에 <b>연결 중</b>입니다…</div>
   </div>
 </section>
@@ -343,7 +343,7 @@
       <div id="meas-list"></div>
     </div>
   </div>
-  <footer>BRG Engineering · 1차 로컬 버전 (샘플 데이터)</footer>
+  <footer>BRG Engineering · 3차 실시간 공유 · <span id="build-tag"></span></footer>
 </section>
 
 <!-- ═══════════ 모달: 비밀번호 인증 ═══════════ -->
@@ -662,7 +662,10 @@ function renderChart(){
       svg.appendChild(svgEl('circle',{class:'pt'+(warn?' warn':''),cx:sx,cy:sy,r:warn?6:5,fill:warn?'#d64545':s.color}));
       // 점 옆에 연번(#N) — 위쪽 끝이면 아래로, 시리즈별로 위/아래 번갈아
       const putBelow = below || sy < padT+22;
-      const lb=svgEl('text',{class:'ptlabel',x:sx+7,y:putBelow?sy+18:sy-9,'text-anchor':'start',fill:s.color});
+      // 오른쪽 끝 점은 라벨이 잘리므로 점 왼쪽에 오른쪽정렬로 표시
+      const nearRight = sx > (W-padR-26);
+      const lb=svgEl('text',{class:'ptlabel',x:nearRight?sx-7:sx+7,y:putBelow?sy+18:sy-9,
+        'text-anchor':nearRight?'end':'start',fill:s.color});
       lb.textContent='#'+d.seq; svg.appendChild(lb);
     });
     const li=document.createElement('span'); li.className='li';
@@ -731,7 +734,7 @@ function renderMeasurements(){
     el.innerHTML=`
       <button class="acc-hd" type="button">
         <span class="seq">#${m.seq}</span>
-        <span class="mid"><div class="d">${esc(m.datetime.slice(0,10))}</div><div class="p">${esc(ptName(pt))}</div></span>
+        <span class="mid"><div class="d">${esc(m.datetime.slice(0,10))}${(m.photos||(m.photoKeys&&m.photoKeys.length))?' <span title="사진 있음">📷</span>':''}</div><div class="p">${esc(ptName(pt))}</div></span>
         <span class="vals">폭 ${fmt(m.gap)} · 단차 ${fmt(m.step)}<span class="warnflag">${c.alert?' ⚠':''}</span></span>
         <span class="caret">▾</span>
       </button>
@@ -750,10 +753,11 @@ function renderMeasurements(){
       </div>`;
     const hd=el.querySelector('.acc-hd');
     hd.addEventListener('click',()=>{ el.classList.toggle('open');   // 클릭 → 펼침/접힘
-      if(el.classList.contains('open')) ensurePhotos(m); });          // 펼칠 때 서버 사진 지연 로딩
+      if(el.classList.contains('open')) ensurePhotos(m, true); });     // 펼칠 때 서버 사진 즉시 로딩
     el.querySelectorAll('.ph.has').forEach(ph=>ph.addEventListener('click',ev=>{ ev.stopPropagation(); openImage(ph.dataset.src); }));
     box.appendChild(el);
   });
+  rows.forEach(m=>{ if(m.photoKeys && m.photoKeys.length && !m.photos) ensurePhotos(m); });  // 다른 기기 사진 자동 로딩
 }
 function mcell(label, val, d, base, th){
   const warn = Math.abs(d)>=th;
@@ -1195,13 +1199,18 @@ function photosHtml(m){
   }
   return '<div class="stagenote">첨부된 사진 없음</div>';
 }
-/* 지연 로딩 — 아코디언을 펼칠 때 서버에서 사진을 받아 이 기기에 캐시 */
-function ensurePhotos(m){
+/* 지연 로딩 — 다른 기기에서 올린 사진을 서버에서 받아 이 기기에 캐시
+   · 목록을 그릴 때 자동 로딩(force=false, 쿨다운으로 과다 요청 방지)
+   · 아코디언을 펼치면 즉시 로딩(force=true) */
+const _photoTriedAt={};
+function ensurePhotos(m, force){
   if(!m || m.photos || !m.photoKeys || !m.photoKeys.length) return;    // 이미 있으면 스킵
   if(m._loadingPhotos) return;
   if(!(window.FB && window.FB.ready && window.FB.fetchPhotos)) return;
+  const pid=CUR.id, seq=m.seq, key=pid+'/'+seq, now=Date.now();
+  if(!force && _photoTriedAt[key] && (now-_photoTriedAt[key])<12000) return;   // 자동 로딩은 12초 쿨다운
+  _photoTriedAt[key]=now;
   m._loadingPhotos=true;
-  const pid=CUR.id, seq=m.seq;
   window.FB.fetchPhotos(pid, seq, m.photoKeys).then(ph=>{
     m._loadingPhotos=false;
     if(ph && Object.keys(ph).length){ m.photos=ph; persistLocal(); updatePhotoRegion(seq); }
@@ -1361,6 +1370,10 @@ renderProjects();
     const p=ptOf(proj,pt); toast('QR 스캔 · '+ptName(p)+' 이력');
   }
 })();
+
+/* 빌드 버전 표시 — 캐시된 옛 버전인지 팀장님이 바로 확인 가능 */
+const APP_BUILD='v3.2 · 사진공유(2026-07-15)';
+['build-tag','build-tag2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=APP_BUILD; });
 
 /* 실시간 공유 상태 초기화 + 연결 지연 시 오프라인 안내 */
 setSync('connecting');

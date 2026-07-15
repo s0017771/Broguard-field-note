@@ -1,4 +1,4 @@
-const CACHE_NAME = 'field-note-v13';
+const CACHE_NAME = 'field-note-v14';
 // 단일 HTML 구조 — pdf.js/JSZip/로고는 각 HTML에 인라인되어 별도 캐시 불필요
 // 루트(index.html)는 BRG 엔지니어링 허브, field-note.html은 현장조사노트, monitoring.html은 계측
 const ASSETS = [
