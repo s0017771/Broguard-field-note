@@ -351,7 +351,7 @@
 <div class="modal" id="modal-pw">
   <h4>🔒 입력 인증</h4>
   <p class="msub">계측 <b>입력</b>은 담당 엔지니어만 가능합니다. 4자리 비밀번호를 입력하세요.<br>(열람·그래프는 비밀번호 없이 누구나 가능합니다.)</p>
-  <input id="pw-input" class="pw" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
+  <input id="pw-input" class="pw" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" name="brg-pin" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="••••">
   <div class="err" id="pw-err"></div>
   <div class="mbtns">
     <button class="mbtn ghost" onclick="closeModals()">취소</button>
@@ -958,7 +958,12 @@ function applyRemote(remoteProjects){
   _lastAppliedRemote=incoming;
   DB.projects=graftPhotos(remoteProjects);                  // 로컬 사진 보존
   persistLocal();
+  // photoKeys 재-announce: 이 기기엔 사진이 있는데 서버 상태엔 표식이 없으면,
+  // 상태를 다시 밀어 다른 기기가 사진 존재를 알게 함(옛 버전에서 저장된 사진 포함). 루프 없이 1회로 수렴.
+  let needAnnounce=false;
+  DB.projects.forEach(p=>(p.measurements||[]).forEach(m=>{ if(m.photos && !(m.photoKeys&&m.photoKeys.length)) needAnnounce=true; }));
   refreshUI();
+  if(needAnnounce) fbPush();
 }
 function refreshUI(){                // 서버 변경을 화면에 반영(현재 보고 있는 화면 유지)
   renderProjects();
@@ -1086,9 +1091,10 @@ function openPw(){
   setTimeout(()=>i.focus(),50);
 }
 function checkPw(){
-  const v=document.getElementById('pw-input').value.trim();
+  const raw=document.getElementById('pw-input').value;
+  const v=(raw||'').replace(/[^0-9]/g,'');   // 숫자만 추출 — 자동완성·공백·보이지 않는 문자 방지
   if(v===PASSCODE){ unlocked=true; closeModals(); const a=pendingAction; pendingAction=null; (a||openForm)(); }
-  else { document.getElementById('pw-err').textContent='비밀번호가 올바르지 않습니다.'; }
+  else { document.getElementById('pw-err').textContent='비밀번호가 올바르지 않습니다.'+(v.length!==4?(' (입력된 숫자 '+v.length+'자리)'):''); }
 }
 function pad(n){ return String(n).padStart(2,'0'); }
 function nowStr(){
@@ -1377,7 +1383,7 @@ renderProjects();
 })();
 
 /* 빌드 버전 표시 — 캐시된 옛 버전인지 팀장님이 바로 확인 가능 */
-const APP_BUILD='v3.3 · 진단(2026-07-15)';
+const APP_BUILD='v3.4 · 사진공유 수정(2026-07-15)';
 ['build-tag','build-tag2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=APP_BUILD; });
 
 /* 실시간 공유 상태 초기화 + 연결 지연 시 오프라인 안내 */
