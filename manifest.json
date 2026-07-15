@@ -2,7 +2,7 @@
   "name": "브로가드 현장조사노트",
   "short_name": "현장조사노트",
   "description": "구조물 안전점검 현장조사 도면 마킹 도구",
-  "start_url": "./index.html",
+  "start_url": "./field-note.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
