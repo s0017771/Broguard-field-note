@@ -122,7 +122,7 @@
   #chart .series{fill:none;stroke-width:3}
   #chart .pt{stroke:#fff;stroke-width:2}
   #chart .pt.warn{stroke:var(--warn)}
-  #chart .ptlabel{fill:#33404f;font-size:14px;font-weight:700;font-family:var(--sans)}
+  #chart .ptlabel{fill:#33404f;font-size:18px;font-weight:800;font-family:var(--sans)}
   .legend2{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:.78rem}
   .legend2 .li{display:inline-flex;align-items:center;gap:6px;color:var(--ink)}
   .legend2 .sw{width:14px;height:4px;border-radius:2px}
@@ -163,9 +163,27 @@
   .note-box{margin-top:12px;background:#fbfcfd;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:.86rem;line-height:1.6}
   .note-box .nl{font-size:.7rem;color:var(--muted);font-weight:800;letter-spacing:.05em;margin-bottom:4px}
   .photo-ph{display:flex;gap:8px;margin-top:12px}
-  .photo-ph .ph{flex:1;aspect-ratio:4/3;border:1px dashed var(--line);border-radius:9px;background:#f7f9fc;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:.72rem;gap:3px}
+  .photo-ph .ph{flex:1;aspect-ratio:4/3;border:1px solid var(--line);border-radius:9px;background:#f7f9fc;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:.72rem;gap:3px;
+    overflow:hidden;position:relative;background-size:cover;background-position:center}
+  .photo-ph .ph.has{cursor:pointer;color:#fff}
+  .photo-ph .ph .cap{position:absolute;bottom:0;left:0;right:0;background:rgba(22,41,63,.55);color:#fff;font-size:.66rem;font-weight:700;padding:2px 0;text-align:center}
   .photo-ph .ph .ico{font-size:1.2rem}
+  /* 입력 폼 사진 슬롯 */
+  .photo-slots{display:flex;gap:8px;margin-top:6px}
+  .pslot{flex:1;aspect-ratio:4/3;border:1px dashed var(--line);border-radius:10px;background:#f7f9fc;position:relative;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:.74rem;gap:3px;
+    cursor:pointer;overflow:hidden;background-size:cover;background-position:center}
+  .pslot.has{border-style:solid;border-color:var(--steel)}
+  .pslot .pi{font-size:1.4rem;font-weight:800;color:var(--steel)}
+  .pslot .plabel{position:absolute;bottom:0;left:0;right:0;background:rgba(22,41,63,.55);color:#fff;font-size:.68rem;font-weight:700;padding:2px 0;text-align:center}
+  .pslot .rm{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;
+    width:22px;height:22px;font-size:.9rem;font-weight:800;display:none}
+  .pslot.has .rm{display:block}
+  /* 사진 확대 */
+  #lightbox{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;padding:16px}
+  #lightbox.show{display:flex}
+  #lightbox img{max-width:100%;max-height:92vh;border-radius:8px}
   .badge-alert{display:inline-block;background:var(--warn-soft);color:var(--warn);font-size:.68rem;
     font-weight:800;padding:2px 8px;border-radius:20px;margin-top:8px}
 
@@ -234,7 +252,8 @@
       <button class="io-btn" onclick="exportData()"><span class="ic">⬇</span> 파일로 내보내기</button>
       <label class="io-btn"><span class="ic">⬆</span> 파일 불러오기<input type="file" accept="application/json,.json" onchange="importData(this)" hidden></label>
     </div>
-    <div class="stagenote">전체 계측 데이터를 <b>JSON 파일 하나</b>로 저장/복원합니다. 발주처 전달·백업용. 파일을 불러오면 현재 데이터를 그 파일 내용으로 교체합니다. (사진은 4단계에서 포함 예정)</div>
+    <div class="stagenote">전체 계측 데이터(사진 포함)를 <b>JSON 파일 하나</b>로 저장/복원합니다. 발주처 전달·백업용. 파일을 불러오면 현재 데이터를 그 파일 내용으로 교체합니다.</div>
+    <div class="stagenote" id="storage-note"></div>
   </div>
 </section>
 
@@ -315,7 +334,14 @@
   <div class="cumhint" id="f-cum"></div>
   <label>엔지니어 기록 <span class="auto">현재 상황 · 진행 판단 · 최근 강우 등 자유 기록</span></label>
   <textarea id="f-note" class="fi" rows="4" placeholder="예: 6/1 집중호우 후 계측. 단차 진행 뚜렷. 배수 유공관 주변 관찰 필요..."></textarea>
-  <div class="photo-stage">🖼️ 사진(전경·폭·단차) 첨부는 4단계에서 구현됩니다.</div>
+  <label>사진 <span class="auto">전경 · 폭 · 단차 (선택, 촬영/선택 시 자동 압축)</span></label>
+  <div class="photo-slots">
+    <div class="pslot" data-kind="front" onclick="pickPhoto('front')"><span class="pi">＋</span><span>전경</span><span class="plabel">전경</span><button type="button" class="rm" onclick="removePhoto(event,'front')">✕</button></div>
+    <div class="pslot" data-kind="gap" onclick="pickPhoto('gap')"><span class="pi">＋</span><span>폭</span><span class="plabel">폭</span><button type="button" class="rm" onclick="removePhoto(event,'gap')">✕</button></div>
+    <div class="pslot" data-kind="step" onclick="pickPhoto('step')"><span class="pi">＋</span><span>단차</span><span class="plabel">단차</span><button type="button" class="rm" onclick="removePhoto(event,'step')">✕</button></div>
+  </div>
+  <input type="file" id="photo-input" accept="image/*" hidden>
+  <div class="cumhint" id="f-photohint"></div>
   <div class="err" id="f-err"></div>
   <div class="mbtns">
     <button class="mbtn ghost" onclick="closeModals()">취소</button>
@@ -333,6 +359,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="lightbox" onclick="this.classList.remove('show')"><img id="lightbox-img" alt="사진"></div>
 
 <script>
 'use strict';
@@ -421,6 +448,7 @@ function renderProjects(){
     b.onclick=()=>openSummary(p.id);
     box.appendChild(b);
   });
+  updateStorageNote();
 }
 
 /* ── 총괄 페이지 ── */
@@ -647,15 +675,11 @@ function renderMeasurements(){
         </div>
         ${c.alert?'<span class="badge-alert">⚠ 기준값 대비 누적 '+p.thresholdMm+'mm 이상 — 주의</span>':''}
         <div class="note-box"><div class="nl">엔지니어 기록</div>${esc(m.engineer)}</div>
-        <div class="photo-ph">
-          <div class="ph"><span class="ico">🖼️</span>전경</div>
-          <div class="ph"><span class="ico">🖼️</span>폭</div>
-          <div class="ph"><span class="ico">🖼️</span>단차</div>
-        </div>
-        <div class="stagenote">사진 압축 저장은 4단계에서 구현됩니다.</div>
+        ${photosHtml(m)}
       </div>`;
     const hd=el.querySelector('.acc-hd');
     hd.addEventListener('click',()=>el.classList.toggle('open'));   // 클릭 → 펼침/접힘
+    el.querySelectorAll('.ph.has').forEach(ph=>ph.addEventListener('click',ev=>{ ev.stopPropagation(); openImage(ph.dataset.src); }));
     box.appendChild(el);
   });
 }
@@ -676,7 +700,15 @@ function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
    구조는 JSON 표준이라 5단계(파일 내보내기)·3차(백엔드) 이전에 그대로 재활용.
    ══════════════════════════════════════════════════════════ */
 const LS_KEY='brg-monitoring-v2';   // v2: 공사 전/후 2개 프로젝트 + 측점번호(구조 변경)
-function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({schemaVersion:DB.schemaVersion, projects:DB.projects})); }catch(e){ toast('저장 실패: 브라우저 용량 확인 필요'); } }
+function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({schemaVersion:DB.schemaVersion, projects:DB.projects})); updateStorageNote(); return true; }catch(e){ return false; } }
+function updateStorageNote(){
+  const el=document.getElementById('storage-note'); if(!el) return;
+  const raw=localStorage.getItem(LS_KEY)||'';
+  const mb=(raw.length/1048576);
+  const nPhoto=DB.projects.reduce((s,p)=>s+p.measurements.reduce((t,m)=>t+(m.photos?Object.keys(m.photos).length:0),0),0);
+  el.innerHTML=`저장 용량 사용 <b>약 ${mb.toFixed(2)} MB</b> (브라우저 한도 대략 5MB) · 사진 ${nPhoto}장`
+    + (mb>4 ? ' <span style="color:var(--warn);font-weight:800">— 한도 임박! 내보내기로 백업하세요</span>' : '');
+}
 function loadSaved(){
   try{ const raw=localStorage.getItem(LS_KEY);
     if(raw){ const d=JSON.parse(raw); if(d&&Array.isArray(d.projects)&&d.projects.length){ DB.projects=d.projects; } }
@@ -774,9 +806,49 @@ function openForm(){
   document.getElementById('f-step').value='';
   document.getElementById('f-note').value='';
   document.getElementById('f-err').textContent='';
+  formPhotos={}; ['front','gap','step'].forEach(paintSlot); updatePhotoHint();   // 사진 초기화
   updateCumHint();
   document.getElementById('overlay').classList.add('show');
   document.getElementById('modal-form').classList.add('show');
+}
+
+/* ── 사진 (4단계) — 촬영/선택 → 자동 압축(가로 1000px·JPEG) → dataURL 저장 ── */
+const PHOTO_KINDS=[['front','전경'],['gap','폭'],['step','단차']];
+let formPhotos={}, photoTargetKind=null;
+function pickPhoto(kind){ photoTargetKind=kind; const inp=document.getElementById('photo-input'); inp.value=''; inp.click(); }
+function removePhoto(ev,kind){ ev.stopPropagation(); delete formPhotos[kind]; paintSlot(kind); updatePhotoHint(); }
+function paintSlot(kind){
+  const slot=document.querySelector('.pslot[data-kind="'+kind+'"]'); if(!slot) return;
+  if(formPhotos[kind]){ slot.classList.add('has'); slot.style.backgroundImage="url('"+formPhotos[kind]+"')"; }
+  else { slot.classList.remove('has'); slot.style.backgroundImage=''; }
+}
+function updatePhotoHint(){
+  const n=Object.keys(formPhotos).length;
+  document.getElementById('f-photohint').textContent = n ? ('사진 '+n+'장 첨부됨 (자동 압축 저장)') : '';
+}
+function compressImage(file, maxW, quality){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const scale=Math.min(1, maxW/img.width);
+      const w=Math.max(1,Math.round(img.width*scale)), h=Math.max(1,Math.round(img.height*scale));
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(img.src);
+      try{ resolve(c.toDataURL('image/jpeg', quality)); }catch(e){ reject(e); }
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(img.src); reject(new Error('img')); };
+    img.src=URL.createObjectURL(file);
+  });
+}
+function openImage(src){ document.getElementById('lightbox-img').src=src; document.getElementById('lightbox').classList.add('show'); }
+function photosHtml(m){
+  const ph=m.photos||{};
+  if(!PHOTO_KINDS.some(k=>ph[k[0]])) return '<div class="stagenote">첨부된 사진 없음</div>';
+  return '<div class="photo-ph">'+PHOTO_KINDS.map(([k,lb])=> ph[k]
+    ? '<div class="ph has" data-src="'+ph[k]+'" style="background-image:url(\''+ph[k]+'\')"><span class="cap">'+lb+'</span></div>'
+    : '<div class="ph"><span class="ico">—</span>'+lb+'</div>'
+  ).join('')+'</div>';
 }
 function updateCumHint(){                        // 입력 중 기준값 대비 누적을 실시간 안내
   const pid=document.getElementById('f-point').value;
@@ -801,14 +873,16 @@ function saveMeasurement(){
   const m={ seq:nextSeq, datetime:document.getElementById('f-dt').value, pointId:pid,
     gap:Math.round(g*10)/10, step:Math.round(s*10)/10,
     engineer:document.getElementById('f-note').value.trim()||'(기록 없음)' };
+  if(Object.keys(formPhotos).length) m.photos={...formPhotos};        // 압축된 사진 첨부
   if(!CUR.baseline[pid]){ CUR.baseline[pid]={gap:m.gap, step:m.step}; }  // 첫 계측 = 기준값
   CUR.measurements.push(m);
-  persist();
+  const ok=persist();
   renderChart();                                 // 그래프 갱신
   renderMeasurements();
   renderProjects();                              // 리스트 건수 갱신
   closeModals();
-  toast(`#${nextSeq} 계측이 저장되었습니다`);
+  if(ok) toast(`#${nextSeq} 계측이 저장되었습니다`);
+  else alert('저장 용량이 부족합니다. 사진 때문일 수 있어요.\n\n[파일로 내보내기]로 백업한 뒤 오래된 계측을 정리하거나, 사진 수를 줄여 주세요.\n(이번 계측은 화면엔 있지만 저장되지 않았습니다.)');
 }
 function closeModals(){
   document.getElementById('overlay').classList.remove('show');
@@ -867,6 +941,12 @@ document.addEventListener('keydown',e=>{
 /* 시작 */
 loadSaved();
 wireChartControls();
+document.getElementById('photo-input').addEventListener('change', async e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f||!photoTargetKind){ return; }
+  try{ formPhotos[photoTargetKind]=await compressImage(f, 1000, 0.6); paintSlot(photoTargetKind); updatePhotoHint(); }
+  catch(err){ toast('사진 처리 실패'); }
+  e.target.value='';
+});
 renderProjects();
 
 /* 테스트용 훅 */
