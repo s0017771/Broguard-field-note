@@ -990,6 +990,7 @@ function setSync(state){             // 공유 상태 표시
 window.__brgOnRemote=function(projects){ applyRemote(projects); };
 window.__brgGetLocal=function(){ return stripPhotos(DB.projects); };
 window.__brgSync=function(state){ setSync(state); };
+window.__brgToast=function(msg){ toast(msg); };   // 모듈(Firebase)에서 오류를 화면에 알릴 때
 /* Firebase 준비되면 1회: 이 기기에만 있던 로컬 사진을 서버에 올려 공유(3-B 이전 데이터 백필) */
 let _photosBackfilled=false;
 window.__brgFbReady=function(){
@@ -1191,11 +1192,14 @@ function photosHtml(m){
       : '<div class="ph"><span class="ico">—</span>'+lb+'</div>'
     ).join('')+'</div>';
   }
-  if(m.photoKeys && m.photoKeys.length){           // 서버에 사진 있음 · 아직 이 기기로 안 받음 → 지연 로딩 표시
+  if(m.photoKeys && m.photoKeys.length){           // 서버에 사진 있음 · 아직 이 기기로 안 받음 → 지연 로딩/오류 표시
+    const foot = m._photoErr
+      ? '<div class="stagenote" style="color:var(--warn)">⚠ 사진 불러오기 실패 — '+esc(m._photoErr)+' (다시 펼치면 재시도)</div>'
+      : '<div class="stagenote">다른 기기에서 올린 사진 '+m.photoKeys.length+'장 — 불러오는 중…</div>';
     return '<div class="photo-ph">'+PHOTO_KINDS.map(([k,lb])=> m.photoKeys.indexOf(k)>=0
-      ? '<div class="ph"><span class="ico">⏳</span>'+lb+'</div>'
+      ? '<div class="ph"><span class="ico">'+(m._photoErr?'⚠':'⏳')+'</span>'+lb+'</div>'
       : '<div class="ph"><span class="ico">—</span>'+lb+'</div>'
-    ).join('')+'</div><div class="stagenote">다른 기기에서 올린 사진 '+m.photoKeys.length+'장 — 불러오는 중…</div>';
+    ).join('')+'</div>'+foot;
   }
   return '<div class="stagenote">첨부된 사진 없음</div>';
 }
@@ -1213,8 +1217,9 @@ function ensurePhotos(m, force){
   m._loadingPhotos=true;
   window.FB.fetchPhotos(pid, seq, m.photoKeys).then(ph=>{
     m._loadingPhotos=false;
-    if(ph && Object.keys(ph).length){ m.photos=ph; persistLocal(); updatePhotoRegion(seq); }
-  }).catch(()=>{ m._loadingPhotos=false; });
+    if(ph && Object.keys(ph).length){ m.photos=ph; m._photoErr=null; persistLocal(); updatePhotoRegion(seq); }
+    else { m._photoErr='서버에 사진 문서 없음(업로드 안됨)'; updatePhotoRegion(seq); }   // 진단: 표식은 있는데 실제 문서 없음
+  }).catch(err=>{ m._loadingPhotos=false; m._photoErr=(err&&(err.code||err.message))||'unknown'; updatePhotoRegion(seq); });
 }
 function updatePhotoRegion(seq){                    // 특정 계측의 사진 영역만 다시 그림(아코디언 접힘 방지)
   const wrap=document.querySelector('.photowrap[data-seq="'+seq+'"]'); if(!wrap||!CUR) return;
@@ -1372,7 +1377,7 @@ renderProjects();
 })();
 
 /* 빌드 버전 표시 — 캐시된 옛 버전인지 팀장님이 바로 확인 가능 */
-const APP_BUILD='v3.2 · 사진공유(2026-07-15)';
+const APP_BUILD='v3.3 · 진단(2026-07-15)';
 ['build-tag','build-tag2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=APP_BUILD; });
 
 /* 실시간 공유 상태 초기화 + 연결 지연 시 오프라인 안내 */
@@ -1428,7 +1433,8 @@ window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurem
       pushPhotos(projectId, seq, photos){
         PKINDS.forEach(k=>{
           const r=photoRef(projectId, seq, k);
-          if(photos && photos[k]) setDoc(r, { data: photos[k], updatedAt: serverTimestamp() }).catch(()=>{});
+          if(photos && photos[k]) setDoc(r, { data: photos[k], updatedAt: serverTimestamp() })
+            .catch(e=>{ if(window.__brgToast) window.__brgToast('사진 업로드 실패: '+((e&&e.code)||e&&e.message||'')); });   // 진단: 업로드 오류 노출
           else deleteDoc(r).catch(()=>{});
         });
       },
@@ -1437,9 +1443,10 @@ window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurem
       },
       async fetchPhotos(projectId, seq, kinds){
         const list=(kinds && kinds.length)?kinds:PKINDS, out={};
-        await Promise.all(list.map(async k=>{
-          try{ const s=await getDoc(photoRef(projectId, seq, k)); if(s.exists() && s.data().data) out[k]=s.data().data; }catch(e){}
-        }));
+        for(const k of list){                    // 오류를 삼키지 않고 던짐 → 호출부에서 화면에 표시
+          const s=await getDoc(photoRef(projectId, seq, k));
+          if(s.exists() && s.data() && s.data().data) out[k]=s.data().data;
+        }
         return Object.keys(out).length ? out : null;
       }
     };
