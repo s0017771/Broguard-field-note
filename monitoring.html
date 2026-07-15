@@ -71,6 +71,17 @@
   .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.86rem}
   .kv dt{color:var(--muted);font-weight:700;white-space:nowrap}
   .kv dd{color:var(--ink)}
+  .mini-btn{border:1px solid var(--line);background:#fff;color:var(--steel);font-weight:800;font-size:.72rem;
+    border-radius:8px;padding:3px 9px;margin-left:6px}
+  .mini-btn:active{transform:scale(.97)}
+  .scope-tag{font-size:.7rem;font-weight:800;color:var(--steel);background:var(--steel-soft);border-radius:20px;padding:2px 9px;margin-left:6px;vertical-align:2px}
+  /* 측점 관리 */
+  .prow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .prow .pno{flex:0 0 54px;font-family:var(--mono);font-weight:800;color:var(--steel);font-size:.86rem}
+  .prow input{flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:.9rem;font-family:var(--sans);color:var(--ink)}
+  .prow input:focus{outline:none;border-color:var(--steel);box-shadow:0 0 0 3px var(--steel-soft)}
+  .prow .del{border:1px solid #f0b6b6;background:var(--warn-soft);color:var(--warn);font-weight:800;font-size:.78rem;border-radius:9px;padding:8px 11px}
+  .prow .del:active{transform:scale(.97)}
   .goal{background:var(--steel-soft);border-radius:10px;padding:12px 14px;font-size:.86rem;color:var(--navy);margin-top:12px;line-height:1.6}
   .goal b{font-weight:800}
 
@@ -92,11 +103,14 @@
   .seg button{border:none;background:#fff;color:var(--muted);font-size:.8rem;font-weight:700;padding:8px 12px}
   .seg button+button{border-left:1px solid var(--line)}
   .seg button.on{background:var(--navy);color:#fff}
-  #chart-wrap{position:relative;width:100%;overflow:hidden}
+  #chart-wrap{position:relative;width:100%;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   #chart{width:100%;height:auto;display:block;touch-action:pan-y;
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-  #chart text{pointer-events:none;-webkit-user-select:none;user-select:none} /* 글자 선택→검색 팝업 방지 */
-  #chart .grid,#chart .axis,#chart .base,#chart .thr,#chart .band,#chart .series{pointer-events:none}
+  #chart *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none} /* 글자 선택→검색 팝업 방지 */
+  #chart text{pointer-events:none}
+  #chart .grid,#chart .axis,#chart .base,#chart .thr,#chart .band,#chart .series,#chart .pt{pointer-events:none}
+  #chart .hit{pointer-events:all;cursor:pointer}
   #chart .grid{stroke:#eef1f5;stroke-width:1}
   #chart .axis{stroke:#c7cfda;stroke-width:1.2}
   #chart .base{stroke:#8a97a8;stroke-width:2;stroke-dasharray:3 4}
@@ -255,7 +269,7 @@
     <!-- 3) 계측 리스트 (아코디언) -->
     <div class="panel">
       <div class="list-hd">
-        <h3 style="margin:0"><span class="dot"></span>계측 리스트</h3>
+        <h3 style="margin:0"><span class="dot"></span>계측 리스트 <span id="list-scope" class="scope-tag">전체</span></h3>
         <button class="btn-new" onclick="newMeasurement()">＋ 새 측정</button>
       </div>
       <div class="legend">항목을 누르면 상세가 펼쳐집니다 · 다시 누르면 접힙니다 &nbsp;|&nbsp; <span class="chip warn">주의</span> 기준값 대비 누적 10mm 이상</div>
@@ -301,6 +315,15 @@
   </div>
 </div>
 
+<!-- ═══════════ 모달: 측점 관리 ═══════════ -->
+<div class="modal" id="modal-points">
+  <h4>⚙ 측점 관리</h4>
+  <p class="msub">측점 이름 수정·삭제·추가. 측점번호는 자동으로 부여됩니다.<br>측점을 삭제하면 그 측점의 계측 기록도 함께 삭제됩니다.</p>
+  <div id="points-list"></div>
+  <button class="mbtn ghost" style="margin-top:12px" onclick="addManagedPoint()">＋ 측점 추가</button>
+  <div class="mbtns"><button class="mbtn" onclick="finishPoints()">완료</button></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -321,9 +344,9 @@ function brgProject(id, name, phase, seed){
   return Object.assign({
     id, name, phase,
     facility: '누산배수교 접속부 자전거도로 보강토옹벽',
-    structure: '보강토옹벽 H=3.6m(벽체3.0+근입0.6) · 보강재 TR EX 6T(6단) · 저면 유공관 D150',
-    damage: '접속부 약 10cm 침하(단차), 경계부 약 3~4cm 이격',
-    goal: '이격·단차의 진행성 모니터링으로 <b>함몰 위험 조기 감지</b>. 초기 2~4주 간격, 안정 시 조정, 집중호우 후 수시.',
+    structure: '보강토옹벽 H=3~4m · 보강재 TREX · 종방향 저면 유공관 D150',
+    damage: '접속부 침하(단차), 옹벽·포장 경계부 이격',
+    goal: '이격·단차의 <b>진행성 모니터링</b> 및 이상 징후 조기 감지. 초기 2~4주 간격, 안정 시 조정, 집중호우 후 수시.',
     period: phase==='공사 전' ? '재포장 공사 전 — 긴급보수 후 진행성 계측' : '재포장 공사 후 — 재이격 진행성 계측',
     thresholdMm: 10,                           // 기준값 대비 누적 경고 임계값(프로젝트별)
     metrics: [                                 // 확장 가능(향후 벽체 기울기 등)
@@ -402,7 +425,7 @@ function openSummary(pid){
     <dt>시설물</dt><dd>${esc(CUR.facility)}</dd>
     <dt>구조</dt><dd>${esc(CUR.structure)}</dd>
     <dt>손상</dt><dd>${esc(CUR.damage)}</dd>
-    <dt>측점</dt><dd>${CUR.points.length}개소 (좌·우 × 접속부·1m·2m)</dd>
+    <dt>측점</dt><dd>${CUR.points.length}개소 <button class="mini-btn" onclick="openPointsManager()">측점 관리</button></dd>
     <dt>계측 방법</dt><dd>이격=크랙게이지 · 단차=레벨/직선자</dd>
     <dt>주기</dt><dd>${esc(CUR.period)}</dd>
     <dt>경고 임계</dt><dd>기준값 대비 누적 ${CUR.thresholdMm}mm</dd>`;
@@ -524,7 +547,8 @@ function renderChart(){
   const xt=[tmin, tmin+dt/2, tmax].filter((v,i,a)=>a.indexOf(v)===i);
   xt.forEach(t=>{ const tx=svgEl('text',{class:'alabel',x:X(t),y:H-padB+24,'text-anchor':'middle'}); tx.textContent=fmtDate(t); svg.appendChild(tx); });
 
-  // 시리즈 곡선 + 점
+  // 시리즈 곡선 + 점 (점 좌표를 저장해두고, 탭은 가까운 점으로 스냅)
+  _chartPts=[];
   series.forEach(s=>{
     if(s.data.length>1){
       const dstr=s.data.map((d,i)=>(i?'L':'M')+X(d.t)+' '+Y(d.v)).join(' ');
@@ -532,16 +556,28 @@ function renderChart(){
     }
     s.data.forEach(d=>{
       const warn=cum && Math.abs(d.v)>=th;
-      const c=svgEl('circle',{class:'pt'+(warn?' warn':''),cx:X(d.t),cy:Y(d.v),r:warn?7:5.5,fill:warn?'#d64545':s.color});
-      c.addEventListener('pointerdown',ev=>showTip(ev,s,d));    // 탭하면 상세 말풍선
-      c.addEventListener('pointerenter',ev=>showTip(ev,s,d));   // (PC) 올려도 표시
-      c.addEventListener('pointerleave',hideTip);
-      svg.appendChild(c);
+      const sx=X(d.t), sy=Y(d.v);
+      svg.appendChild(svgEl('circle',{class:'pt'+(warn?' warn':''),cx:sx,cy:sy,r:warn?7:5.5,fill:warn?'#d64545':s.color}));
+      _chartPts.push({sx,sy,s,d});
     });
     const li=document.createElement('span'); li.className='li';
     li.innerHTML=`<span class="sw" style="background:${s.color}"></span>${esc(s.label)}`;
     legend.appendChild(li);
   });
+  // 투명 히트영역: 아무 데나 탭해도 가장 가까운 점의 말풍선을 띄움 (정확히 안 눌러도 됨)
+  const hit=svgEl('rect',{class:'hit',x:0,y:0,width:W,height:H,fill:'transparent'});
+  hit.addEventListener('pointerdown', onChartTap);
+  svg.appendChild(hit);
+}
+let _chartPts=[];
+function onChartTap(ev){
+  ev.preventDefault();
+  if(!_chartPts.length) return;
+  const svg=document.getElementById('chart'), r=svg.getBoundingClientRect();
+  const vx=(ev.clientX-r.left)/r.width*640, vy=(ev.clientY-r.top)/r.height*350;
+  let best=null,bd=1e9;
+  _chartPts.forEach(pt=>{ const dd=(pt.sx-vx)**2+(pt.sy-vy)**2; if(dd<bd){bd=dd;best=pt;} });
+  if(best) showTipAt(best);
 }
 function niceTicks(min,max,n){
   const span=max-min, step0=span/n, mag=Math.pow(10,Math.floor(Math.log10(step0)));
@@ -551,10 +587,11 @@ function niceTicks(min,max,n){
   return out;
 }
 function fmtDate(t){ const d=new Date(t); return (d.getMonth()+1)+'/'+d.getDate(); }
-function showTip(ev,s,d){
+function showTipAt(best){
+  const {s,d,sx,sy}=best;
   const tip=document.getElementById('chart-tip'), wrap=document.getElementById('chart-wrap');
-  const r=wrap.getBoundingClientRect();
-  const cx=ev.clientX-r.left, cy=ev.clientY-r.top;
+  const svg=document.getElementById('chart'), wr=wrap.getBoundingClientRect(), sr=svg.getBoundingClientRect();
+  const cx=(sr.left-wr.left)+sx/640*sr.width, cy=(sr.top-wr.top)+sy/350*sr.height;
   // 전체 비교: s.label=측점, 지표=현재 metric / 측점별: s.label=지표, 측점=선택된 측점
   const loc = chartState.scope==='all' ? esc(s.label) : esc(ptName(ptOf(CUR,chartState.scope)));
   const metLabel = chartState.scope==='all' ? (chartState.metric==='gap'?'이격(폭)':'단차(침하)') : esc(s.label);
@@ -573,14 +610,14 @@ function fillChartPointSelect(){
 }
 function onChartPoint(){
   chartState.scope=document.getElementById('seg-point').value;
-  applyChartMode(); renderChart();
+  applyChartMode(); renderChart(); renderMeasurements();   // 리스트도 선택 측점만 보이게
 }
 function applyChartMode(){
   // 측점별 모드에선 지표 토글 숨김(이격·단차 함께 표시), 안내문 갱신
   const isAll=chartState.scope==='all';
   document.getElementById('seg-metric').classList.toggle('hide', !isAll);
   document.getElementById('chart-sub').textContent = isAll
-    ? '측점을 겹쳐 한 지표로 비교합니다. 특정 측점을 고르면 그 측점의 이격·단차를 함께 봅니다.'
+    ? '측점을 겹쳐 한 지표로 비교합니다. 특정 측점을 고르면 그 측점의 이격·단차·계측 리스트만 봅니다.'
     : '이 측점의 이격(파랑)·단차(주황)를 날짜별로 봅니다. (기준값 대비 누적)';
 }
 /* 그래프 컨트롤 배선 */
@@ -595,15 +632,19 @@ function wireChartControls(){
     document.querySelectorAll('#seg-mode button').forEach(x=>x.classList.toggle('on',x===b));
     renderChart();
   }));
-  const svg=document.getElementById('chart');
-  if(svg) svg.addEventListener('pointerdown',e=>{ if(e.target.tagName!=='circle') hideTip(); }); // 배경 탭 → 툴팁 닫기
 }
 
 function renderMeasurements(){
   const box=document.getElementById('meas-list'); box.innerHTML='';
   const p=CUR;
-  // 최신순 정렬
-  const rows=[...p.measurements].sort((a,b)=>b.datetime.localeCompare(a.datetime));
+  // 드롭다운에서 측점을 고르면 그 측점의 계측만, '전체 비교'면 전부
+  const scope=chartState.scope;
+  let rows=[...p.measurements];
+  if(scope!=='all') rows=rows.filter(m=>m.pointId===scope);
+  const hdr=document.getElementById('list-scope');
+  if(hdr) hdr.textContent = scope==='all' ? '전체' : ptName(ptOf(p,scope));
+  rows.sort((a,b)=>b.datetime.localeCompare(a.datetime));
+  if(!rows.length){ box.innerHTML='<div class="chart-empty" style="padding:22px 0">이 측점의 계측 기록이 아직 없습니다.</div>'; return; }
   rows.forEach(m=>{
     const pt=ptOf(p,m.pointId);
     const c=cumInfo(p,m);
@@ -666,11 +707,13 @@ if(new URLSearchParams(location.search).get('reset')==='1') localStorage.removeI
    ══════════════════════════════════════════════════════════ */
 const PASSCODE='1122';            // 담당 엔지니어 입력용 (실수 방지 수준)
 let unlocked=false;               // 세션 중 1회 인증하면 유지(새로고침 시 초기화)
+let pendingAction=null;           // 인증 후 실행할 작업
 
-function newMeasurement(){
+function requireUnlock(action){   // 데이터 변경 작업은 비밀번호 인증 후 실행
   if(!CUR){ toast('프로젝트를 먼저 선택하세요'); return; }
-  if(unlocked){ openForm(); } else { openPw(); }
+  if(unlocked){ action(); } else { pendingAction=action; openPw(); }
 }
+function newMeasurement(){ requireUnlock(openForm); }
 function openPw(){
   document.getElementById('pw-err').textContent='';
   const i=document.getElementById('pw-input'); i.value='';
@@ -680,7 +723,7 @@ function openPw(){
 }
 function checkPw(){
   const v=document.getElementById('pw-input').value.trim();
-  if(v===PASSCODE){ unlocked=true; closeModals(); openForm(); }
+  if(v===PASSCODE){ unlocked=true; closeModals(); const a=pendingAction; pendingAction=null; (a||openForm)(); }
   else { document.getElementById('pw-err').textContent='비밀번호가 올바르지 않습니다.'; }
 }
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -755,6 +798,51 @@ function closeModals(){
   document.getElementById('overlay').classList.remove('show');
   document.querySelectorAll('.modal').forEach(m=>m.classList.remove('show'));
 }
+
+/* ── 측점 관리 (이름 수정·삭제·추가) — 비밀번호 인증 필요 ── */
+function openPointsManager(){ requireUnlock(openPointsMgr); }
+function openPointsMgr(){
+  renderPointsList();
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('modal-points').classList.add('show');
+}
+function renderPointsList(){
+  const box=document.getElementById('points-list'); box.innerHTML='';
+  CUR.points.forEach(pt=>{
+    const cnt=CUR.measurements.filter(m=>m.pointId===pt.id).length;
+    const row=document.createElement('div'); row.className='prow';
+    row.innerHTML=`<span class="pno">측점 ${pt.no!=null?pt.no:''}</span>
+      <input value="${esc(pt.label)}" data-id="${esc(pt.id)}">
+      <button class="del" data-id="${esc(pt.id)}">삭제${cnt?(' ('+cnt+')'):''}</button>`;
+    row.querySelector('input').addEventListener('change',e=>renameManagedPoint(pt.id,e.target.value));
+    row.querySelector('.del').addEventListener('click',()=>deleteManagedPoint(pt.id));
+    box.appendChild(row);
+  });
+}
+function renameManagedPoint(id,val){
+  const pt=CUR.points.find(p=>p.id===id); if(!pt) return;
+  const v=(val||'').trim(); if(!v){ renderPointsList(); return; }
+  pt.label=v; persist();
+}
+function addManagedPoint(){
+  const name=(prompt('추가할 측점 이름 (예: 좌 · 3m)')||'').trim(); if(!name) return;
+  let n=1; while(CUR.points.some(p=>p.id==='P'+n)) n++;
+  const nextNo=CUR.points.reduce((mx,p)=>Math.max(mx,p.no||0),0)+1;
+  CUR.points.push({id:'P'+n,no:nextNo,label:name}); persist(); renderPointsList();
+}
+function deleteManagedPoint(id){
+  const pt=CUR.points.find(p=>p.id===id); if(!pt) return;
+  const cnt=CUR.measurements.filter(m=>m.pointId===id).length;
+  const msg=cnt ? `'${ptName(pt)}'와(과) 그 계측 ${cnt}건을 함께 삭제할까요?` : `'${ptName(pt)}'을(를) 삭제할까요?`;
+  if(!confirm(msg)) return;
+  CUR.points=CUR.points.filter(p=>p.id!==id);
+  CUR.measurements=CUR.measurements.filter(m=>m.pointId!==id);
+  delete CUR.baseline[id];
+  if(chartState.scope===id) chartState.scope='all';
+  persist(); renderPointsList();
+}
+function finishPoints(){ const id=CUR.id; closeModals(); openSummary(id); }   // 총괄 새로 렌더
+
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape') closeModals();
   if(e.key==='Enter' && document.getElementById('modal-pw').classList.contains('show')) checkPw();
