@@ -952,9 +952,10 @@ const PASSCODE='1122';            // 담당 엔지니어 입력용 (실수 방�
 let unlocked=false;               // 세션 중 1회 인증하면 유지(새로고침 시 초기화)
 let pendingAction=null;           // 인증 후 실행할 작업
 
-function requireUnlock(action){   // 데이터 변경 작업은 비밀번호 인증 후 실행
+function requireUnlock(action, alwaysAsk){   // 데이터 변경 작업은 비밀번호 인증 후 실행
   if(!CUR){ toast('프로젝트를 먼저 선택하세요'); return; }
-  if(unlocked){ action(); } else { pendingAction=action; openPw(); }
+  // 새 입력은 세션 1회 인증 후 생략 / 수정·삭제(alwaysAsk)는 매번 비밀번호 요구
+  if(unlocked && !alwaysAsk){ action(); } else { pendingAction=action; openPw(); }
 }
 let editing=null;                 // 수정 중인 계측 (null=새 입력)
 function recomputeBaseline(p){     // 기준값 = 측점별 가장 이른 계측 (수정·삭제 후 자동 재계산)
@@ -963,14 +964,14 @@ function recomputeBaseline(p){     // 기준값 = 측점별 가장 이른 계측
   p.baseline={}; Object.keys(first).forEach(pid=>{ p.baseline[pid]={gap:first[pid].gap, step:first[pid].step}; });
 }
 function newMeasurement(){ requireUnlock(()=>{ editing=null; openForm(); }); }
-function editMeasurement(seq){ requireUnlock(()=>{ editing=CUR.measurements.find(m=>m.seq===seq)||null; if(editing) openForm(); }); }
+function editMeasurement(seq){ requireUnlock(()=>{ editing=CUR.measurements.find(m=>m.seq===seq)||null; if(editing) openForm(); }, true); }
 function deleteMeasurement(seq){ requireUnlock(()=>{
   const m=CUR.measurements.find(x=>x.seq===seq); if(!m) return;
   if(!confirm('#'+seq+' 계측('+ptName(ptOf(CUR,m.pointId))+' · '+m.datetime.slice(0,10)+')을(를) 삭제할까요?')) return;
   CUR.measurements=CUR.measurements.filter(x=>x.seq!==seq);
   recomputeBaseline(CUR); persist();
   renderChart(); renderMeasurements(); renderProjects(); toast('#'+seq+' 삭제되었습니다');
-}); }
+}, true); }
 function cancelForm(){ editing=null; closeModals(); }
 function openPw(){
   document.getElementById('pw-err').textContent='';
