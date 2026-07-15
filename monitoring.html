@@ -358,6 +358,17 @@
   <div class="mbtns"><button class="mbtn" onclick="finishPoints()">완료</button></div>
 </div>
 
+<!-- ═══════════ 모달: 사진 촬영/앨범 선택 ═══════════ -->
+<div class="modal" id="modal-photo-src">
+  <h4>📷 사진 추가</h4>
+  <p class="msub">카메라로 촬영하거나 앨범에서 선택하세요.</p>
+  <div class="mbtns" style="flex-direction:column">
+    <button class="mbtn" onclick="choosePhotoSrc('cam')">📷 카메라로 촬영</button>
+    <button class="mbtn" style="background:var(--steel)" onclick="choosePhotoSrc('lib')">🖼 앨범에서 선택</button>
+    <button class="mbtn ghost" onclick="closePhotoSrc()">취소</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div id="lightbox" onclick="this.classList.remove('show')"><img id="lightbox-img" alt="사진"></div>
 
@@ -568,15 +579,16 @@ function renderChart(){
   // Y축 단위
   const yl=svgEl('text',{class:'alabel',x:padL-46,y:padT-8,'text-anchor':'start'}); yl.textContent='(mm)'; svg.appendChild(yl);
 
-  // 기준선(0) · 임계선
+  // 기준선(0) · 임계선 — 라벨을 서로 반대쪽 끝에 두어 초반 데이터 점과 겹치지 않게
   if(cum){
     if(0>=vmin&&0<=vmax){
       svg.appendChild(svgEl('line',{class:'base',x1:padL,y1:Y(0),x2:W-padR,y2:Y(0)}));
-      const b=svgEl('text',{class:'baselabel',x:padL+6,y:Y(0)-8,'text-anchor':'start'}); b.textContent='기준값 0'; svg.appendChild(b);
+      const b=svgEl('text',{class:'baselabel',x:W-padR,y:Y(0)+18,'text-anchor':'end'}); b.textContent='기준값 0'; svg.appendChild(b);
     }
     [th,-th].forEach(tv=>{ if(tv>=vmin&&tv<=vmax){
       svg.appendChild(svgEl('line',{class:'thr',x1:padL,y1:Y(tv),x2:W-padR,y2:Y(tv)}));
-      const t=svgEl('text',{class:'thrlabel',x:padL+6,y:Y(tv)-8,'text-anchor':'start'}); t.textContent='⚠ 임계 '+signed(tv)+'mm'; svg.appendChild(t);
+      const up = tv>0;                                        // +임계는 선 위, -임계는 선 아래
+      const t=svgEl('text',{class:'thrlabel',x:padL+4,y:Y(tv)+(up?-7:17),'text-anchor':'start'}); t.textContent='⚠ 임계 '+signed(tv)+'mm'; svg.appendChild(t);
     }});
   }
   // X 눈금 (처음·중간·끝)
@@ -584,18 +596,19 @@ function renderChart(){
   xt.forEach(t=>{ const tx=svgEl('text',{class:'alabel',x:X(t),y:H-padB+24,'text-anchor':'middle'}); tx.textContent=fmtDate(t); svg.appendChild(tx); });
 
   // 시리즈 곡선 + 점 + 연번 라벨 (터치 상호작용 없음 → 검색 팝업/툴팁 문제 없음)
-  series.forEach(s=>{
+  series.forEach((s,si)=>{
     if(s.data.length>1){
       const dstr=s.data.map((d,i)=>(i?'L':'M')+X(d.t)+' '+Y(d.v)).join(' ');
       svg.appendChild(svgEl('path',{class:'series',d:dstr,stroke:s.color}));
     }
+    const below = si%2===1;                                   // 시리즈마다 위/아래 번갈아 → 겹침 완화
     s.data.forEach(d=>{
       const warn=cum && Math.abs(d.v)>=th;
       const sx=X(d.t), sy=Y(d.v);
       svg.appendChild(svgEl('circle',{class:'pt'+(warn?' warn':''),cx:sx,cy:sy,r:warn?6:5,fill:warn?'#d64545':s.color}));
-      // 점 옆에 연번(#N) 작게 — 계측 리스트와 대조용
-      const near = sy < padT+22;                              // 위쪽 끝이면 라벨을 아래로
-      const lb=svgEl('text',{class:'ptlabel',x:sx+7,y:near?sy+16:sy-8,'text-anchor':'start'});
+      // 점 옆에 연번(#N) — 위쪽 끝이면 아래로, 시리즈별로 위/아래 번갈아
+      const putBelow = below || sy < padT+22;
+      const lb=svgEl('text',{class:'ptlabel',x:sx+7,y:putBelow?sy+18:sy-9,'text-anchor':'start',fill:s.color});
       lb.textContent='#'+d.seq; svg.appendChild(lb);
     });
     const li=document.createElement('span'); li.className='li';
@@ -815,7 +828,18 @@ function openForm(){
 /* ── 사진 (4단계) — 촬영/선택 → 자동 압축(가로 1000px·JPEG) → dataURL 저장 ── */
 const PHOTO_KINDS=[['front','전경'],['gap','폭'],['step','단차']];
 let formPhotos={}, photoTargetKind=null;
-function pickPhoto(kind){ photoTargetKind=kind; const inp=document.getElementById('photo-input'); inp.value=''; inp.click(); }
+function pickPhoto(kind){                         // 촬영/앨범 선택 팝업
+  photoTargetKind=kind;
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('modal-photo-src').classList.add('show');
+}
+function closePhotoSrc(){ document.getElementById('modal-photo-src').classList.remove('show'); } // 뒤 입력폼은 유지
+function choosePhotoSrc(mode){                    // 'cam'=카메라, 'lib'=앨범
+  closePhotoSrc();                                // 입력 폼은 열린 채로
+  const inp=document.getElementById('photo-input'); inp.value='';
+  if(mode==='cam') inp.setAttribute('capture','environment'); else inp.removeAttribute('capture');
+  inp.click();                                    // 사용자 제스처 내에서 호출 → 카메라/앨범 열림
+}
 function removePhoto(ev,kind){ ev.stopPropagation(); delete formPhotos[kind]; paintSlot(kind); updatePhotoHint(); }
 function paintSlot(kind){
   const slot=document.querySelector('.pslot[data-kind="'+kind+'"]'); if(!slot) return;
