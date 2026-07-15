@@ -742,14 +742,15 @@ function renderMeasurements(){
         </div>
         ${c.alert?'<span class="badge-alert">⚠ 기준값 대비 누적 '+p.thresholdMm+'mm 이상 — 주의</span>':''}
         <div class="note-box"><div class="nl">엔지니어 기록</div>${esc(m.engineer)}</div>
-        ${photosHtml(m)}
+        <div class="photowrap" data-seq="${m.seq}">${photosHtml(m)}</div>
         <div class="acc-actions">
           <button class="acc-btn edit" onclick="editMeasurement(${m.seq})">✏ 수정</button>
           <button class="acc-btn del" onclick="deleteMeasurement(${m.seq})">🗑 삭제</button>
         </div>
       </div>`;
     const hd=el.querySelector('.acc-hd');
-    hd.addEventListener('click',()=>el.classList.toggle('open'));   // 클릭 → 펼침/접힘
+    hd.addEventListener('click',()=>{ el.classList.toggle('open');   // 클릭 → 펼침/접힘
+      if(el.classList.contains('open')) ensurePhotos(m); });          // 펼칠 때 서버 사진 지연 로딩
     el.querySelectorAll('.ph.has').forEach(ph=>ph.addEventListener('click',ev=>{ ev.stopPropagation(); openImage(ph.dataset.src); }));
     box.appendChild(el);
   });
@@ -925,7 +926,12 @@ let _lastAppliedRemote=null;        // 내 쓰기의 메아리(echo)를 걸러�
 let deferredRemote=null;            // 입력 모달이 열려 있으면 닫힌 뒤 반영
 function stripPhotos(projects){     // 서버에는 사진(dataURL)을 빼고 텍스트만 보냄
   return projects.map(p=>Object.assign({}, p, {
-    measurements:(p.measurements||[]).map(m=>{ const c=Object.assign({},m); delete c.photos; return c; })
+    measurements:(p.measurements||[]).map(m=>{
+      const c=Object.assign({},m);
+      if(c.photos){ c.photoKeys=Object.keys(c.photos); delete c.photos; }  // 어떤 종류 사진이 있는지 표식만 남김
+      // photos 없고 photoKeys(원격 표식)만 있는 경우엔 그대로 유지
+      return c;
+    })
   }));
 }
 function fbPush(){                   // 로컬 변경을 서버로 밀어올림
@@ -1054,6 +1060,7 @@ function deleteMeasurement(seq){ requireUnlock(()=>{
   if(!confirm('#'+seq+' 계측('+ptName(ptOf(CUR,m.pointId))+' · '+m.datetime.slice(0,10)+')을(를) 삭제할까요?')) return;
   CUR.measurements=CUR.measurements.filter(x=>x.seq!==seq);
   recomputeBaseline(CUR); persist();
+  if(window.FB && window.FB.ready && window.FB.deletePhotos) window.FB.deletePhotos(CUR.id, seq);  // 서버 사진도 삭제
   renderChart(); renderMeasurements(); renderProjects(); toast('#'+seq+' 삭제되었습니다');
 }, true); }
 function cancelForm(){ editing=null; closeModals(); }
@@ -1164,11 +1171,38 @@ function compressImage(file, maxW, quality){
 function openImage(src){ document.getElementById('lightbox-img').src=src; document.getElementById('lightbox').classList.add('show'); }
 function photosHtml(m){
   const ph=m.photos||{};
-  if(!PHOTO_KINDS.some(k=>ph[k[0]])) return '<div class="stagenote">첨부된 사진 없음</div>';
-  return '<div class="photo-ph">'+PHOTO_KINDS.map(([k,lb])=> ph[k]
-    ? '<div class="ph has" data-src="'+ph[k]+'" style="background-image:url(\''+ph[k]+'\')"><span class="cap">'+lb+'</span></div>'
-    : '<div class="ph"><span class="ico">—</span>'+lb+'</div>'
-  ).join('')+'</div>';
+  const hasLocal=PHOTO_KINDS.some(k=>ph[k[0]]);
+  if(hasLocal){                                    // 이 기기에 사진 있음 → 썸네일
+    return '<div class="photo-ph">'+PHOTO_KINDS.map(([k,lb])=> ph[k]
+      ? '<div class="ph has" data-src="'+ph[k]+'" style="background-image:url(\''+ph[k]+'\')"><span class="cap">'+lb+'</span></div>'
+      : '<div class="ph"><span class="ico">—</span>'+lb+'</div>'
+    ).join('')+'</div>';
+  }
+  if(m.photoKeys && m.photoKeys.length){           // 서버에 사진 있음 · 아직 이 기기로 안 받음 → 지연 로딩 표시
+    return '<div class="photo-ph">'+PHOTO_KINDS.map(([k,lb])=> m.photoKeys.indexOf(k)>=0
+      ? '<div class="ph"><span class="ico">⏳</span>'+lb+'</div>'
+      : '<div class="ph"><span class="ico">—</span>'+lb+'</div>'
+    ).join('')+'</div><div class="stagenote">다른 기기에서 올린 사진 '+m.photoKeys.length+'장 — 불러오는 중…</div>';
+  }
+  return '<div class="stagenote">첨부된 사진 없음</div>';
+}
+/* 지연 로딩 — 아코디언을 펼칠 때 서버에서 사진을 받아 이 기기에 캐시 */
+function ensurePhotos(m){
+  if(!m || m.photos || !m.photoKeys || !m.photoKeys.length) return;    // 이미 있으면 스킵
+  if(m._loadingPhotos) return;
+  if(!(window.FB && window.FB.ready && window.FB.fetchPhotos)) return;
+  m._loadingPhotos=true;
+  const pid=CUR.id, seq=m.seq;
+  window.FB.fetchPhotos(pid, seq, m.photoKeys).then(ph=>{
+    m._loadingPhotos=false;
+    if(ph && Object.keys(ph).length){ m.photos=ph; persistLocal(); updatePhotoRegion(seq); }
+  }).catch(()=>{ m._loadingPhotos=false; });
+}
+function updatePhotoRegion(seq){                    // 특정 계측의 사진 영역만 다시 그림(아코디언 접힘 방지)
+  const wrap=document.querySelector('.photowrap[data-seq="'+seq+'"]'); if(!wrap||!CUR) return;
+  const m=CUR.measurements.find(x=>x.seq===seq); if(!m) return;
+  wrap.innerHTML=photosHtml(m);
+  wrap.querySelectorAll('.ph.has').forEach(ph=>ph.addEventListener('click',ev=>{ ev.stopPropagation(); openImage(ph.dataset.src); }));
 }
 function updateCumHint(){                        // 입력 중 기준값 대비 누적을 실시간 안내
   const pid=document.getElementById('f-point').value;
@@ -1194,19 +1228,23 @@ function saveMeasurement(){
   const photos=Object.keys(formPhotos).length ? {...formPhotos} : null;
   const gap=Math.round(g*10)/10, step=Math.round(s*10)/10;
   const note=document.getElementById('f-note').value.trim()||'(기록 없음)';
-  let msg;
+  let msg, savedSeq;
   if(editing){                                    // 기존 계측 수정
     editing.pointId=pid; editing.datetime=dt; editing.gap=gap; editing.step=step; editing.engineer=note;
-    if(photos) editing.photos=photos; else delete editing.photos;
-    msg='#'+editing.seq+' 수정되었습니다';
+    if(photos){ editing.photos=photos; } else { delete editing.photos; delete editing.photoKeys; }
+    msg='#'+editing.seq+' 수정되었습니다'; savedSeq=editing.seq;
   } else {                                        // 새 계측
     const nextSeq=CUR.measurements.reduce((m,x)=>Math.max(m,x.seq),0)+1;
     const m={ seq:nextSeq, datetime:dt, pointId:pid, gap, step, engineer:note };
     if(photos) m.photos=photos;
-    CUR.measurements.push(m); msg='#'+nextSeq+' 계측이 저장되었습니다';
+    CUR.measurements.push(m); msg='#'+nextSeq+' 계측이 저장되었습니다'; savedSeq=nextSeq;
   }
   recomputeBaseline(CUR);                          // 기준값 재계산
   const ok=persist();
+  if(window.FB && window.FB.ready && window.FB.pushPhotos){   // 3-B: 사진을 서버에 별도 저장/삭제
+    if(photos) window.FB.pushPhotos(CUR.id, savedSeq, photos);
+    else window.FB.deletePhotos(CUR.id, savedSeq);
+  }
   editing=null;
   renderChart(); renderMeasurements(); renderProjects();
   closeModals();
@@ -1255,8 +1293,10 @@ function deleteManagedPoint(id){
   const cnt=CUR.measurements.filter(m=>m.pointId===id).length;
   const msg=cnt ? `'${ptName(pt)}'와(과) 그 계측 ${cnt}건을 함께 삭제할까요?` : `'${ptName(pt)}'을(를) 삭제할까요?`;
   if(!confirm(msg)) return;
+  const removedSeqs=CUR.measurements.filter(m=>m.pointId===id).map(m=>m.seq);
   CUR.points=CUR.points.filter(p=>p.id!==id);
   CUR.measurements=CUR.measurements.filter(m=>m.pointId!==id);
+  if(window.FB && window.FB.ready && window.FB.deletePhotos) removedSeqs.forEach(sq=>window.FB.deletePhotos(CUR.id, sq));  // 서버 사진도 삭제
   delete CUR.baseline[id];
   if(chartState.scope===id) chartState.scope='all';
   persist(); renderPointsList();
@@ -1331,7 +1371,7 @@ window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurem
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-           doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+           doc, onSnapshot, setDoc, getDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
   const firebaseConfig = {
@@ -1354,11 +1394,31 @@ window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurem
     });
     const ref = doc(fdb, 'monitoring', 'state');   // 전체 상태를 문서 1개로 (텍스트만, 소용량)
 
+    const PKINDS = ['front','gap','step'];
+    const photoRef = (projectId, seq, kind)=> doc(fdb, 'photos', projectId+'__'+seq+'__'+kind);
     window.FB = {
       ready: true,
       push(projects){
         setDoc(ref, { schemaVersion: 2, projects, updatedAt: serverTimestamp() })
           .catch(()=>{ if(window.__brgSync) window.__brgSync('offline'); });
+      },
+      // 3-B: 사진은 종류별 문서로 분리 저장(문서 1MiB 한도 회피 · 지연 로딩)
+      pushPhotos(projectId, seq, photos){
+        PKINDS.forEach(k=>{
+          const r=photoRef(projectId, seq, k);
+          if(photos && photos[k]) setDoc(r, { data: photos[k], updatedAt: serverTimestamp() }).catch(()=>{});
+          else deleteDoc(r).catch(()=>{});
+        });
+      },
+      deletePhotos(projectId, seq){
+        PKINDS.forEach(k=> deleteDoc(photoRef(projectId, seq, k)).catch(()=>{}));
+      },
+      async fetchPhotos(projectId, seq, kinds){
+        const list=(kinds && kinds.length)?kinds:PKINDS, out={};
+        await Promise.all(list.map(async k=>{
+          try{ const s=await getDoc(photoRef(projectId, seq, k)); if(s.exists() && s.data().data) out[k]=s.data().data; }catch(e){}
+        }));
+        return Object.keys(out).length ? out : null;
       }
     };
 
