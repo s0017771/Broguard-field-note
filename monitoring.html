@@ -192,12 +192,24 @@
   .qr-card .qt{font-weight:800;font-size:.95rem;margin-top:8px;color:var(--ink)}
   .qr-card .qs{font-size:.78rem;color:var(--muted);margin-top:2px}
   @media print {
+    @page { margin: 10mm; }
+    html, body { height:auto !important; min-height:0 !important; overflow:visible !important; background:#fff !important; }
     body > *:not(#modal-qr){ display:none !important; }
-    #modal-qr{ position:static; display:block; box-shadow:none; max-height:none; width:auto; padding:0; }
+    #overlay{ display:none !important; }
+    #modal-qr{ position:static !important; transform:none !important; left:auto !important; top:auto !important;
+      display:block !important; box-shadow:none !important; max-height:none !important; max-width:none !important;
+      width:100% !important; margin:0 !important; padding:0 !important; overflow:visible !important; border-radius:0 !important; }
     .noprint{ display:none !important; }
-    #qr-list{ grid-template-columns:repeat(3,1fr); gap:10px; }
-    .qr-card{ border:1px solid #999; }
+    #qr-print{ width:100%; }
+    #qr-list{ display:grid !important; grid-template-columns:repeat(3, 1fr) !important; gap:8mm !important; }
+    .qr-card{ border:1px solid #999 !important; padding:5mm !important; break-inside:avoid; page-break-inside:avoid; }
+    .qr-card canvas{ width:100% !important; }
   }
+  .acc-actions{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
+  .acc-btn{border:1px solid var(--line);background:#fff;font-weight:800;font-size:.8rem;border-radius:9px;padding:8px 14px}
+  .acc-btn:active{transform:scale(.97)}
+  .acc-btn.edit{color:var(--steel);border-color:#bcd6ef}
+  .acc-btn.del{color:var(--warn);border-color:#f0b6b6;background:var(--warn-soft)}
   .badge-alert{display:inline-block;background:var(--warn-soft);color:var(--warn);font-size:.68rem;
     font-weight:800;padding:2px 8px;border-radius:20px;margin-top:8px}
 
@@ -335,11 +347,11 @@
 
 <!-- ═══════════ 모달: 계측 입력 폼 ═══════════ -->
 <div class="modal" id="modal-form">
-  <h4>＋ 새 계측 입력</h4>
+  <h4 id="form-title">＋ 새 계측 입력</h4>
   <p class="msub" id="form-proj">—</p>
-  <label>날짜·시간 <span class="auto">자동 기록</span></label>
-  <input id="f-dt" class="fi" readonly>
-  <label>측점 <span class="auto">수동 선택 (QR 자동선택은 6단계)</span></label>
+  <label>날짜·시간 <span class="auto">자동 기록 (필요 시 수정 가능)</span></label>
+  <input id="f-dt" class="fi" placeholder="YYYY-MM-DD HH:MM">
+  <label>측점 <span class="auto">수동 선택</span></label>
   <select id="f-point" class="fi" onchange="onPointChange()"></select>
   <div class="two">
     <div><label>이격(폭) <span class="auto">mm</span></label><input id="f-gap" class="fi" type="number" step="0.1" inputmode="decimal" oninput="updateCumHint()" placeholder="0.0"></div>
@@ -358,7 +370,7 @@
   <div class="cumhint" id="f-photohint"></div>
   <div class="err" id="f-err"></div>
   <div class="mbtns">
-    <button class="mbtn ghost" onclick="closeModals()">취소</button>
+    <button class="mbtn ghost" onclick="cancelForm()">취소</button>
     <button class="mbtn" onclick="saveMeasurement()">저장</button>
   </div>
 </div>
@@ -714,6 +726,10 @@ function renderMeasurements(){
         ${c.alert?'<span class="badge-alert">⚠ 기준값 대비 누적 '+p.thresholdMm+'mm 이상 — 주의</span>':''}
         <div class="note-box"><div class="nl">엔지니어 기록</div>${esc(m.engineer)}</div>
         ${photosHtml(m)}
+        <div class="acc-actions">
+          <button class="acc-btn edit" onclick="editMeasurement(${m.seq})">✏ 수정</button>
+          <button class="acc-btn del" onclick="deleteMeasurement(${m.seq})">🗑 삭제</button>
+        </div>
       </div>`;
     const hd=el.querySelector('.acc-hd');
     hd.addEventListener('click',()=>el.classList.toggle('open'));   // 클릭 → 펼침/접힘
@@ -940,7 +956,22 @@ function requireUnlock(action){   // 데이터 변경 작업은 비밀번호 인
   if(!CUR){ toast('프로젝트를 먼저 선택하세요'); return; }
   if(unlocked){ action(); } else { pendingAction=action; openPw(); }
 }
-function newMeasurement(){ requireUnlock(openForm); }
+let editing=null;                 // 수정 중인 계측 (null=새 입력)
+function recomputeBaseline(p){     // 기준값 = 측점별 가장 이른 계측 (수정·삭제 후 자동 재계산)
+  const first={};
+  p.measurements.forEach(m=>{ const c=first[m.pointId]; if(!c || m.datetime<c.datetime) first[m.pointId]=m; });
+  p.baseline={}; Object.keys(first).forEach(pid=>{ p.baseline[pid]={gap:first[pid].gap, step:first[pid].step}; });
+}
+function newMeasurement(){ requireUnlock(()=>{ editing=null; openForm(); }); }
+function editMeasurement(seq){ requireUnlock(()=>{ editing=CUR.measurements.find(m=>m.seq===seq)||null; if(editing) openForm(); }); }
+function deleteMeasurement(seq){ requireUnlock(()=>{
+  const m=CUR.measurements.find(x=>x.seq===seq); if(!m) return;
+  if(!confirm('#'+seq+' 계측('+ptName(ptOf(CUR,m.pointId))+' · '+m.datetime.slice(0,10)+')을(를) 삭제할까요?')) return;
+  CUR.measurements=CUR.measurements.filter(x=>x.seq!==seq);
+  recomputeBaseline(CUR); persist();
+  renderChart(); renderMeasurements(); renderProjects(); toast('#'+seq+' 삭제되었습니다');
+}); }
+function cancelForm(){ editing=null; closeModals(); }
 function openPw(){
   document.getElementById('pw-err').textContent='';
   const i=document.getElementById('pw-input'); i.value='';
@@ -979,14 +1010,27 @@ function onPointChange(){
 }
 function openForm(presetPid){
   fillPointSelect();
-  if(presetPid && CUR.points.some(p=>p.id===presetPid)) document.getElementById('f-point').value=presetPid; // QR로 온 측점 자동 선택
-  document.getElementById('form-proj').textContent=CUR.name;
-  document.getElementById('f-dt').value=nowStr();
-  document.getElementById('f-gap').value='';
-  document.getElementById('f-step').value='';
-  document.getElementById('f-note').value='';
+  const title=document.getElementById('form-title');
+  if(editing){                                    // 수정 모드
+    title.textContent='✏ 계측 수정 (#'+editing.seq+')';
+    document.getElementById('f-point').value=editing.pointId;
+    document.getElementById('f-dt').value=editing.datetime;
+    document.getElementById('f-gap').value=editing.gap;
+    document.getElementById('f-step').value=editing.step;
+    document.getElementById('f-note').value=(editing.engineer==='(기록 없음)'?'':editing.engineer);
+    formPhotos=editing.photos?{...editing.photos}:{};
+  } else {                                        // 새 입력
+    title.textContent='＋ 새 계측 입력';
+    if(presetPid && CUR.points.some(p=>p.id===presetPid)) document.getElementById('f-point').value=presetPid;
+    document.getElementById('f-dt').value=nowStr();
+    document.getElementById('f-gap').value='';
+    document.getElementById('f-step').value='';
+    document.getElementById('f-note').value='';
+    formPhotos={};
+  }
+  document.getElementById('form-proj').textContent=CUR.name+(editing?' · 수정':'');
   document.getElementById('f-err').textContent='';
-  formPhotos={}; ['front','gap','step'].forEach(paintSlot); updatePhotoHint();   // 사진 초기화
+  ['front','gap','step'].forEach(paintSlot); updatePhotoHint();
   updateCumHint();
   document.getElementById('overlay').classList.add('show');
   document.getElementById('modal-form').classList.add('show');
@@ -1056,23 +1100,32 @@ function updateCumHint(){                        // 입력 중 기준값 대비 
 function saveMeasurement(){
   const err=document.getElementById('f-err');
   const pid=document.getElementById('f-point').value;
+  const dt=document.getElementById('f-dt').value.trim();
   const g=parseFloat(document.getElementById('f-gap').value);
   const s=parseFloat(document.getElementById('f-step').value);
+  if(!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dt)){ err.textContent='날짜·시간 형식은 YYYY-MM-DD HH:MM 이어야 합니다.'; return; }
   if(isNaN(g)||isNaN(s)){ err.textContent='이격(폭)과 단차(침하)를 숫자로 입력하세요.'; return; }
   if(g<0||s<0){ err.textContent='음수는 입력할 수 없습니다.'; return; }
-  const nextSeq=CUR.measurements.reduce((m,x)=>Math.max(m,x.seq),0)+1;
-  const m={ seq:nextSeq, datetime:document.getElementById('f-dt').value, pointId:pid,
-    gap:Math.round(g*10)/10, step:Math.round(s*10)/10,
-    engineer:document.getElementById('f-note').value.trim()||'(기록 없음)' };
-  if(Object.keys(formPhotos).length) m.photos={...formPhotos};        // 압축된 사진 첨부
-  if(!CUR.baseline[pid]){ CUR.baseline[pid]={gap:m.gap, step:m.step}; }  // 첫 계측 = 기준값
-  CUR.measurements.push(m);
+  const photos=Object.keys(formPhotos).length ? {...formPhotos} : null;
+  const gap=Math.round(g*10)/10, step=Math.round(s*10)/10;
+  const note=document.getElementById('f-note').value.trim()||'(기록 없음)';
+  let msg;
+  if(editing){                                    // 기존 계측 수정
+    editing.pointId=pid; editing.datetime=dt; editing.gap=gap; editing.step=step; editing.engineer=note;
+    if(photos) editing.photos=photos; else delete editing.photos;
+    msg='#'+editing.seq+' 수정되었습니다';
+  } else {                                        // 새 계측
+    const nextSeq=CUR.measurements.reduce((m,x)=>Math.max(m,x.seq),0)+1;
+    const m={ seq:nextSeq, datetime:dt, pointId:pid, gap, step, engineer:note };
+    if(photos) m.photos=photos;
+    CUR.measurements.push(m); msg='#'+nextSeq+' 계측이 저장되었습니다';
+  }
+  recomputeBaseline(CUR);                          // 기준값 재계산
   const ok=persist();
-  renderChart();                                 // 그래프 갱신
-  renderMeasurements();
-  renderProjects();                              // 리스트 건수 갱신
+  editing=null;
+  renderChart(); renderMeasurements(); renderProjects();
   closeModals();
-  if(ok) toast(`#${nextSeq} 계측이 저장되었습니다`);
+  if(ok) toast(msg);
   else alert('저장 용량이 부족합니다. 사진 때문일 수 있어요.\n\n[파일로 내보내기]로 백업한 뒤 오래된 계측을 정리하거나, 사진 수를 줄여 주세요.\n(이번 계측은 화면엔 있지만 저장되지 않았습니다.)');
 }
 function closeModals(){
@@ -1159,7 +1212,9 @@ document.getElementById('photo-input').addEventListener('change', async e=>{
 });
 renderProjects();
 
-/* QR 스캔 진입: ?project=&point= → 해당 프로젝트 총괄 + 그 측점 계측 입력(비밀번호) */
+/* QR 스캔 진입: ?project=&point= → 해당 측점의 '이력'을 바로 보여줌 (열람, 비밀번호 불필요)
+   · 목적: 감독·제3자가 현장에서 QR을 찍으면 그 위치의 계측 이력(그래프+리스트)을 봄
+   · 열람만 하면 되고, 다른 측점 선택·입력(비번)은 그대로 가능 */
 (function(){
   const sp=new URLSearchParams(location.search);
   const pj=sp.get('project'), pt=sp.get('point');
@@ -1167,14 +1222,14 @@ renderProjects();
   const proj=DB.projects.find(x=>x.id===pj); if(!proj) return;
   openSummary(pj);
   if(pt && proj.points.some(x=>x.id===pt)){
-    if(chartState.scope!=='all'){} chartState.scope=pt; fillChartPointSelect(); applyChartMode(); renderChart(); renderMeasurements();
-    requireUnlock(()=>openForm(pt));   // QR로 온 측점 자동 선택 + 비밀번호
+    chartState.scope=pt; fillChartPointSelect(); applyChartMode(); renderChart(); renderMeasurements();
+    const p=ptOf(proj,pt); toast('QR 스캔 · '+ptName(p)+' 이력');
   }
 })();
 
 /* 테스트용 훅 */
-window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, get current(){return CUR;},
-  get unlocked(){return unlocked;}, PASSCODE, exportData, importData, openQR, qrUrl };
+window.BRG={ get db(){return DB;}, go, openSummary, newMeasurement, editMeasurement, deleteMeasurement,
+  get current(){return CUR;}, get unlocked(){return unlocked;}, PASSCODE, exportData, importData, openQR, qrUrl };
 </script>
 </body>
 </html>
