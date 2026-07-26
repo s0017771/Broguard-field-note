@@ -1,13 +1,13 @@
-const CACHE_NAME = 'field-note-v18';
+const CACHE_NAME = 'field-note-v19';
 // 단일 HTML 구조 — pdf.js/JSZip/로고는 각 HTML에 인라인되어 별도 캐시 불필요
-// 루트(index.html)는 BRG 엔지니어링 허브, field-note.html은 현장조사노트,
-// monitoring.html은 계측, bridge-survey.html은 교량 제원 현장조사 입력기
+// 허브(index)·현장조사노트(field-note)·계측(monitoring)·교량제원(bridge-survey)·정기점검재촬영(reinspect)
 const ASSETS = [
   './',
   './index.html',
   './field-note.html',
   './monitoring.html',
   './bridge-survey.html',
+  './reinspect.html',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
