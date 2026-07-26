@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#1f3a5f">
+<title>교량 제원 현장조사 입력기</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --navy:#1e3a5f; --steel:#3d6ea5; --steel-2:#5b8bc4;
+  --ink:#1b2432; --muted:#5c6675;
+  --bg:#e9edf2; --panel:#ffffff; --panel-2:#f4f6f9;
+  --line:#d3dae3; --line-2:#e5e9ef;
+  --dim:#c0392b;            /* 치수선 색 (제도 관례) */
+  --paper:#ffffff; --draw:#26374a; --draw-2:#7b8798;
+  --fill-slab:#d9e2ec; --fill-girder:#b9c6d6; --fill-sub:#c7d0da; --fill-bear:#8fa2b6;
+  --good:#2e7d55; --warn:#b45309;
+  --radius:10px; --shadow:0 1px 2px rgba(20,35,55,.06),0 6px 20px rgba(20,35,55,.06);
+  --mono:"SF Mono",ui-monospace,"Consolas","Menlo",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#e7ecf3; --muted:#9aa6b5;
+    --bg:#11161d; --panel:#1a212b; --panel-2:#202934;
+    --line:#2c3644; --line-2:#242e3a;
+    --paper:#161c24; --draw:#c3cedb; --draw-2:#69788a;
+    --fill-slab:#2a3746; --fill-girder:#354658; --fill-sub:#2e3c4c; --fill-bear:#54657a;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e7ecf3; --muted:#9aa6b5;
+  --bg:#11161d; --panel:#1a212b; --panel-2:#202934;
+  --line:#2c3644; --line-2:#242e3a;
+  --paper:#161c24; --draw:#c3cedb; --draw-2:#69788a;
+  --fill-slab:#2a3746; --fill-girder:#354658; --fill-sub:#2e3c4c; --fill-bear:#54657a;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --ink:#1b2432; --muted:#5c6675;
+  --bg:#e9edf2; --panel:#ffffff; --panel-2:#f4f6f9;
+  --line:#d3dae3; --line-2:#e5e9ef;
+  --paper:#ffffff; --draw:#26374a; --draw-2:#7b8798;
+  --fill-slab:#d9e2ec; --fill-girder:#b9c6d6; --fill-sub:#c7d0da; --fill-bear:#8fa2b6;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-text-size-adjust:100%}
+.app{display:grid;grid-template-columns:380px 1fr;gap:0;min-height:100vh}
+@media (max-width:880px){.app{grid-template-columns:1fr}}
+
+/* ---------- header ---------- */
+header.top{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--navy);color:#fff;position:sticky;top:0;z-index:20}
+header.top .logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--steel-2),var(--steel));display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:.5px;flex:0 0 auto}
+header.top h1{font-size:15px;margin:0;font-weight:700;letter-spacing:-.2px}
+header.top .sub{font-size:11.5px;color:#b9cbe0;margin-top:1px}
+header.top .spacer{flex:1}
+header.top button{font-family:inherit}
+.tbtn{background:rgba(255,255,255,.08);color:#dce7f2;border:1px solid rgba(255,255,255,.14);padding:7px 12px;border-radius:8px;font-size:12.5px;cursor:pointer;font-weight:600}
+.tbtn:hover{background:rgba(255,255,255,.16)}
+.tbtn.primary{background:var(--steel);border-color:var(--steel-2);color:#fff}
+
+/* ---------- form pane ---------- */
+.form{background:var(--panel);border-right:1px solid var(--line);padding:6px 0 40px;overflow-y:auto;max-height:calc(100vh - 55px);position:sticky;top:55px}
+@media (max-width:880px){.form{max-height:none;position:static;border-right:none;border-bottom:1px solid var(--line)}}
+.preset-bar{padding:13px 18px 15px;background:linear-gradient(180deg,color-mix(in srgb,var(--steel) 9%,var(--panel)),var(--panel));border-bottom:1px solid var(--line)}
+.preset-bar label{display:block;font-size:11.5px;font-weight:700;color:var(--steel);margin-bottom:6px;letter-spacing:-.1px}
+.preset-bar select{font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);background:var(--panel-2);border:1px solid var(--steel);border-radius:8px;padding:9px 10px;width:100%;outline:none}
+.preset-bar select:focus{box-shadow:0 0 0 3px rgba(61,110,165,.18)}
+.preset-hint{font-size:11px;color:var(--muted);margin-top:7px;line-height:1.45}
+.saved-row{display:flex;gap:6px;align-items:stretch}
+.saved-row select{flex:1;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none}
+.saved-row select:focus{border-color:var(--steel);box-shadow:0 0 0 3px rgba(61,110,165,.16)}
+.sv-del{flex:0 0 auto;border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:0 11px;cursor:pointer;font-size:14px}
+.sv-del:hover{border-color:var(--dim)}
+details.grp{border-bottom:1px solid var(--line-2)}
+details.grp>summary{list-style:none;cursor:pointer;padding:13px 18px;font-weight:700;font-size:13px;letter-spacing:-.1px;display:flex;align-items:center;gap:9px;user-select:none}
+details.grp>summary::-webkit-details-marker{display:none}
+details.grp>summary .chev{margin-left:auto;color:var(--muted);transition:transform .15s;font-size:11px}
+details.grp[open]>summary .chev{transform:rotate(90deg)}
+details.grp>summary .num{width:20px;height:20px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line);display:grid;place-items:center;font-size:11px;color:var(--steel);font-weight:800;font-family:var(--mono)}
+.grp .body{padding:4px 18px 16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.row.one{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:3px;margin-top:9px}
+.field label{font-size:11.5px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:5px}
+.field .tag{font-family:var(--mono);font-size:10px;color:var(--steel);background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.field input,.field select,.field textarea{font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;outline:none}
+.field textarea{resize:vertical;line-height:1.5}
+.field input[type=number]{font-family:var(--mono);text-align:right}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--steel);box-shadow:0 0 0 3px rgba(61,110,165,.16)}
+.field input:disabled{opacity:.4;cursor:not-allowed}
+.field .unit{position:relative}
+.field .unit::after{content:"mm";position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:10.5px;color:var(--muted);font-family:var(--mono);pointer-events:none}
+.field .unit input{padding-right:30px}
+.chk{display:flex;align-items:center;gap:8px;margin-top:11px;font-size:12.5px;color:var(--ink);cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--steel)}
+.hint{font-size:11px;color:var(--muted);margin-top:7px;line-height:1.45}
+.supports-preview{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.support-chip{font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line)}
+.support-chip.abut{color:var(--navy);border-color:var(--steel)}
+.support-chip.pier{color:var(--warn);border-color:var(--warn)}
+:root[data-theme="dark"] .support-chip.abut,@media (prefers-color-scheme:dark){.support-chip.abut{color:var(--steel-2)}}
+
+/* ---------- draw pane ---------- */
+.viz{padding:16px 18px 60px;overflow:auto}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.tab{padding:8px 15px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.tab.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.tab .k{font-family:var(--mono);font-size:10.5px;opacity:.6;margin-left:5px}
+.legend{margin-left:auto;display:flex;gap:12px;align-items:center;font-size:11px;color:var(--muted)}
+.legend i{display:inline-block;width:20px;height:0;border-top:2px solid var(--dim);vertical-align:middle;margin-right:5px}
+.paper{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px;overflow:auto}
+.paper svg{display:block;width:100%;height:auto;min-width:640px}
+.view{display:none}
+.view.active{display:block}
+.meta-bar{display:flex;flex-wrap:wrap;gap:8px 18px;padding:10px 4px 0;font-size:12px;color:var(--muted)}
+.meta-bar b{color:var(--ink);font-weight:700}
+.foot{margin-top:18px;font-size:11px;color:var(--muted);text-align:center}
+.memo-card{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--steel);border-radius:10px;padding:12px 15px}
+.memo-card .mc-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:7px}
+.memo-card .mc-title{font-weight:800;font-size:15px;color:var(--ink)}
+.memo-card .mc-loc{font-size:12px;color:var(--muted)}
+.memo-card .mc-badges{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.memo-card .badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--panel-2);border:1px solid var(--line);color:var(--steel)}
+.memo-card .mc-memo{font-size:13px;color:var(--ink);white-space:pre-wrap;line-height:1.55}
+.memo-card .mc-empty{color:var(--muted);font-style:italic}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);background:var(--navy);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.tbtn.warn{background:var(--dim);border-color:var(--dim);color:#fff}
+
+/* svg text helpers via classes injected */
+text{font-family:var(--sans)}
+.svg-dim{fill:var(--dim);font-family:var(--mono);font-weight:700}
+.svg-label{fill:var(--draw);font-weight:700}
+.svg-note{fill:var(--draw-2)}
+
+/* toolbar2 (background image) */
+.toolbar2{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;font-size:12px;color:var(--muted)}
+.bgbtn{display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:12px;font-weight:600;cursor:pointer}
+.bgbtn:hover{border-color:var(--steel)}
+.bgbtn.ghost{color:var(--muted)}
+.bg-name{font-family:var(--mono);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.op-wrap{display:inline-flex;align-items:center;gap:6px}
+.op-wrap input[type=range]{accent-color:var(--steel);width:90px}
+.bg-tip{font-size:11px;color:var(--muted);opacity:.8}
+@media (max-width:880px){.bg-tip{display:none}}
+.bg-adjust{display:none}
+.bg-adjust.on{display:inline-flex}
+.nudge{display:inline-flex;gap:2px;margin-left:4px}
+.nb{font-family:inherit;font-size:11px;line-height:1;padding:4px 6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;cursor:pointer}
+.nb:hover{border-color:var(--steel);color:var(--steel)}
+
+/* validation bar */
+.valbar{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.vchip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid}
+.vchip.ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent);background:color-mix(in srgb,var(--good) 10%,transparent)}
+.vchip.bad{color:var(--dim);border-color:color-mix(in srgb,var(--dim) 45%,transparent);background:color-mix(in srgb,var(--dim) 10%,transparent)}
+.vchip .ico{font-weight:800}
+.vchip.summary{font-weight:800;letter-spacing:-.2px}
+.field input.invalid{border-color:var(--dim)!important;background:color-mix(in srgb,var(--dim) 8%,var(--panel-2))}
+.field input.invalid:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--dim) 22%,transparent)}
+
+@media print{
+  header.top,.form,.tabs .tab,.tbtn,.legend,.toolbar2{display:none!important}
+  .app{display:block}
+  .viz{padding:0}
+  .view{display:block!important;page-break-inside:avoid;margin-bottom:24px}
+  .paper{border:none;box-shadow:none}
+  body{background:#fff}
+}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <header class="top">
+    <div class="logo">BRG</div>
+    <div>
+      <h1>교량 제원 현장조사 입력기</h1>
+      <div class="sub" id="hdr-sub">현장에서 잰 치수를 넣으면 도면에 바로 표시됩니다</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="tbtn" id="btn-theme" title="라이트/다크">◐</button>
+    <button class="tbtn" id="btn-reset">초기화</button>
+    <button class="tbtn" id="btn-save" title="보관함 저장 + 파일 다운로드 시도">💾 저장</button>
+    <button class="tbtn" id="btn-copy" title="JSON을 클립보드로 복사">📋 복사</button>
+    <button class="tbtn" id="btn-paste" title="복사한 JSON 붙여넣어 불러오기">📥 붙여넣기</button>
+    <button class="tbtn" id="btn-load" title="JSON 파일 불러오기">📂 파일</button>
+    <button class="tbtn primary" id="btn-print">인쇄 / PDF</button>
+    <input type="file" id="file-load" accept="application/json" hidden>
+  </header>
+
+  <!-- ============ FORM ============ -->
+  <div class="form" id="form">
+
+    <div class="preset-bar">
+      <label for="preset-pick">📍 현장 프리셋 (김포 도로시설물)</label>
+      <select id="preset-pick">
+        <option value="">— 직접 입력 —</option>
+        <option value="samjae">샘재교</option>
+        <option value="geumbit">금빛수로7교</option>
+        <option value="cheongsong">청송교</option>
+        <option value="yonghwasa">운양 용화사IC (미확정)</option>
+        <option value="gamaji">가마지천6교</option>
+      </select>
+      <div class="preset-hint">선택하면 형식·사각·조인트·난간·보도·메모가 자동 세팅됩니다. 배경(위성/로드뷰)은 아래 <b>🗺 배경 깔기</b>로 추가.</div>
+      <label for="saved-pick" style="margin-top:11px">💾 내 보관함 (저장한 교량)</label>
+      <div class="saved-row">
+        <select id="saved-pick"><option value="">— 저장된 교량 불러오기 —</option></select>
+        <button class="sv-del" id="saved-del" title="선택한 교량 삭제">🗑</button>
+      </div>
+    </div>
+
+    <details class="grp" open>
+      <summary><span class="num">1</span> 교량 정보 <span class="chev">▶</span></summary>
+      <div class="body">
+        <div class="row">
+          <div class="field"><label>교량명</label><input type="text" id="f-name" placeholder="예) 샘재교"></div>
+          <div class="field"><label>위치 (주소)</label><input type="text" id="f-loc" placeholder="예) 김포시 장기동 805"></div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>교량형식</label>
+            <select id="f-type">
+              <option value="steel">강교 (거더수 입력)</option>
+              <option value="girder">거더교 (거더수 입력)</option>
+              <option value="slab">슬래브교 (거더수 없음)</option>
+            </select>
+          </div>
+          <div class="field"><label>거더 갯수</label><input type="number" id="f-girders" min="1" step="1" value="4"></div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>신축이음(조인트)</label>
+            <select id="f-joint">
+              <option value="none">없음 / 미확인</option>
+              <option value="finger">핑거 조인트</option>
+              <option value="monocell">모노셀 조인트</option>
+              <option value="rail">레일형</option>
+              <option value="poured">포어드씰(무조인트)</option>
+              <option value="etc">기타</option>
+            </select>
+          </div>
+          <div class="field"><label>난간</label>
+            <select id="f-rail">
+              <option value="1">있음</option>
+              <option value="0">없음</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label>경간수</label><input type="number" id="f-spans" min="1" max="12" step="1" value="2"></div>
+          <div class="field"><label>보도·차도 난간</label>
+            <select id="f-swrail">
+              <option value="1">있음</option>
+              <option value="0">없음</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label>사각 (斜角) <span class="tag">±°</span></label><input type="number" id="f-skew" min="-90" max="90" step="1" value="90"></div>
+          <div class="field"><label>교량연장 (전체 L) <span class="tag">위성</span></label><div class="unit"><input type="number" id="f-length" placeholder="위성 실측" value=""></div></div>
+        </div>
+        <div class="row one">
+          <div class="field"><label>조사일</label><input type="date" id="f-date"></div>
+        </div>
+        <div class="hint">경간수→지점 자동생성 · 사각 <b>±90°=직교</b>, 부호(+/−)로 기우는 방향이 바뀝니다(예 70°↔−70°) · <b>교량연장</b>을 넣으면 경간장 합(Σ)과 자동 대조합니다.</div>
+        <div class="supports-preview" id="supports-preview"></div>
+      </div>
+    </details>
+
+    <details class="grp" open>
+      <summary><span class="num">2</span> 바닥판 · 거더 (횡단면) <span class="chev">▶</span></summary>
+      <div class="body">
+        <label class="chk"><input type="checkbox" id="f-hashaunch" checked> 거더-바닥판 헌치 있음 <span class="tag">횡단면</span></label>
+        <label class="chk"><input type="checkbox" id="f-cornerhaunch"> 가각부 헌치 있음 <span class="tag">평면 모서리</span></label>
+        <div class="row">
+          <div class="field"><label>거더 폭 <span class="tag">bg</span></label><div class="unit"><input type="number" id="f-gw" value="500"></div></div>
+          <div class="field"><label>거더 높이 <span class="tag">hg</span></label><div class="unit"><input type="number" id="f-gh" value="2000"></div></div>
+          <div class="field"><label>거더 간격 <span class="tag">C.T.C</span></label><div class="unit"><input type="number" id="f-gs" value="2500"></div></div>
+          <div class="field"><label>최외측 캔틸레버 <span class="tag">Ca</span></label><div class="unit"><input type="number" id="f-cant" value="1750"></div></div>
+          <div class="field"><label>바닥판(상판) 두께 <span class="tag">t</span></label><div class="unit"><input type="number" id="f-deck" value="250"></div></div>
+          <div class="field"><label>헌치 폭</label><div class="unit"><input type="number" id="f-hw" value="300"></div></div>
+          <div class="field"><label>헌치 높이</label><div class="unit"><input type="number" id="f-hh" value="200"></div></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="grp" open>
+      <summary><span class="num">3</span> 상판 단면 (포장·연석·보도) <span class="chev">▶</span></summary>
+      <div class="body">
+        <label class="chk"><input type="checkbox" id="f-hascurb" checked> 연석 있음</label>
+        <label class="chk"><input type="checkbox" id="f-hassw" checked> 보도 있음</label>
+        <div class="row">
+          <div class="field"><label>차로수</label><input type="number" id="f-lanes" min="1" step="1" value="2"></div>
+          <div class="field"><label>차도폭 (전체) <span class="tag">W</span></label><div class="unit"><input type="number" id="f-road" value="7000"></div></div>
+          <div class="field"><label>연석 폭</label><div class="unit"><input type="number" id="f-curbw" value="300"></div></div>
+          <div class="field"><label>연석 높이</label><div class="unit"><input type="number" id="f-curbh" value="250"></div></div>
+          <div class="field"><label>보도폭</label><div class="unit"><input type="number" id="f-sww" value="1500"></div></div>
+          <div class="field"><label>보도연석 폭</label><div class="unit"><input type="number" id="f-swcw" value="200"></div></div>
+          <div class="field"><label>보도연석 높이</label><div class="unit"><input type="number" id="f-swch" value="200"></div></div>
+        </div>
+        <div class="hint">양쪽 대칭으로 그립니다. 값이 0이면 도면에서 생략됩니다.</div>
+      </div>
+    </details>
+
+    <details class="grp">
+      <summary><span class="num">4</span> 하부구조 (교대·교각) <span class="chev">▶</span></summary>
+      <div class="body">
+        <div class="hint" style="margin-top:0">■ 교대 (A1·A2)</div>
+        <div class="row">
+          <div class="field"><label>교대 폭 <span class="tag">구체</span></label><div class="unit"><input type="number" id="f-abw" value="1500"></div></div>
+          <div class="field"><label>교대 높이</label><div class="unit"><input type="number" id="f-abh" value="6000"></div></div>
+          <div class="field"><label>흉벽~교좌 센터 <span class="tag">a</span></label><div class="unit"><input type="number" id="f-abbw" value="800"></div></div>
+          <div class="field"><label>교좌 센터~코핑끝 <span class="tag">b</span></label><div class="unit"><input type="number" id="f-abce" value="1200"></div></div>
+          <div class="field"><label>코핑 상단폭 <span class="tag">a+b</span></label><div class="unit"><input type="number" id="f-abcop" value="2000"></div></div>
+        </div>
+        <div class="hint">흉벽~교좌(a)·교좌~코핑끝(b)을 넣으면 <b>코핑 상단폭 = a+b</b>로 자동 계산되고, 종단면도에 <b>교좌(받침) 위치</b>가 반영됩니다. (a·b 없으면 코핑 상단폭 직접 입력)</div>
+        <div class="hint">교대는 종단면도에 <b>벽식(흉벽+구체)</b>으로 그립니다. · 교각형식(원형·구주·벽식 등)은 아래 <b>현장 메모</b>에 기재하세요.</div>
+        <div class="hint">■ 교각 (P)</div>
+        <div class="row">
+          <div class="field"><label>교각 폭</label><div class="unit"><input type="number" id="f-piw" value="2000"></div></div>
+          <div class="field"><label>교각 높이 <span class="tag">기둥</span></label><div class="unit"><input type="number" id="f-pih" value="8000"></div></div>
+          <div class="field"><label>코핑 폭 <span class="tag">종단면</span></label><div class="unit"><input type="number" id="f-picw" value="2500"></div></div>
+          <div class="field"><label>코핑 길이 <span class="tag">≈교폭</span></label><div class="unit"><input type="number" id="f-picl" value="11000"></div></div>
+          <div class="field"><label>코핑 높이</label><div class="unit"><input type="number" id="f-pich" value="1500"></div></div>
+          <div class="field"><label>헌치부 <span class="tag">코핑밑</span></label><div class="unit"><input type="number" id="f-pihn" value="300"></div></div>
+        </div>
+        <div class="hint">· <b>교각 높이</b> = 기초천단~코핑 하단(기둥부). 전체높이 = 교각높이 + 코핑높이. · <b>헌치부</b> = 코핑과 기둥이 만나는 경사(측정 어려우면 0). · 종단면도에 보이는 코핑 치수는 <b>코핑 폭</b>이며, 코핑 길이(≈교량폭)는 기록용입니다.</div>
+      </div>
+    </details>
+
+    <details class="grp">
+      <summary><span class="num">5</span> 교량받침 <span class="chev">▶</span></summary>
+      <div class="body">
+        <div class="row">
+          <div class="field"><label>가로</label><div class="unit"><input type="number" id="f-brw" value="400"></div></div>
+          <div class="field"><label>세로</label><div class="unit"><input type="number" id="f-brl" value="500"></div></div>
+          <div class="field"><label>높이</label><div class="unit"><input type="number" id="f-brh" value="100"></div></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="grp">
+      <summary><span class="num">6</span> 경간장 <span class="chev">▶</span></summary>
+      <div class="body">
+        <div id="span-inputs" class="row"></div>
+        <div class="hint">지점 사이 경간 길이 (S1, S2 …).</div>
+      </div>
+    </details>
+
+    <details class="grp" open>
+      <summary><span class="num">7</span> 현장 조사 메모 <span class="chev">▶</span></summary>
+      <div class="body">
+        <div class="field" style="margin-top:2px">
+          <label>접근성 · 특이사항 (자유 서술)</label>
+          <textarea id="f-memo" rows="4" placeholder="예) 하부에 보도가 있어 조사하기 좋음 / 교대 접근 가능 / 가각부 헌치 / 확인필요 사항 등"></textarea>
+        </div>
+        <div class="hint">위치도 개략조사 메모를 그대로 옮겨두면 현장에서 바로 참고됩니다. (도면 하단·인쇄에 표시)</div>
+      </div>
+    </details>
+
+  </div>
+
+  <!-- ============ DRAW ============ -->
+  <div class="viz">
+    <div class="tabs">
+      <button class="tab active" data-view="section">횡단면도 <span class="k">SEC</span></button>
+      <button class="tab" data-view="elevation">종단면도 <span class="k">ELEV</span></button>
+      <button class="tab" data-view="plan">평면도 <span class="k">PLAN</span></button>
+      <div class="legend"><span><i></i>측정 치수 (mm)</span></div>
+    </div>
+
+    <div class="toolbar2">
+      <label class="bgbtn">🗺 배경 깔기<input type="file" id="bg-file" accept="image/*" hidden></label>
+      <span id="bg-name" class="bg-name">배경 없음</span>
+      <span class="op-wrap">투명도 <input type="range" id="bg-op" min="0" max="100" value="45"></span>
+      <span class="op-wrap bg-adjust" id="bg-adjust">확대 <input type="range" id="bg-scale" min="20" max="400" value="100">
+        회전 <input type="range" id="bg-rot" min="-180" max="180" value="0">
+        <span class="nudge">
+          <button class="nb" data-nudge="lx" title="왼쪽">◀</button>
+          <button class="nb" data-nudge="rx" title="오른쪽">▶</button>
+          <button class="nb" data-nudge="uy" title="위">▲</button>
+          <button class="nb" data-nudge="dy" title="아래">▼</button>
+          <button class="nb" data-nudge="reset" title="원위치">⟲</button>
+        </span>
+      </span>
+      <button class="bgbtn ghost" id="bg-clear">지우기</button>
+      <span class="bg-tip">위성캡처→평면도 / 로드뷰→종·횡단면 에 깔고, 확대·이동으로 도면과 맞춰 보세요</span>
+    </div>
+
+    <div id="validation" class="valbar"></div>
+
+    <div class="view active" id="view-section">
+      <div class="paper"><div id="svg-section"></div></div>
+      <div class="meta-bar" id="meta-section"></div>
+    </div>
+
+    <div class="view" id="view-elevation">
+      <div class="paper"><div id="svg-elevation"></div></div>
+      <div class="meta-bar" id="meta-elevation"></div>
+    </div>
+
+    <div class="view" id="view-plan">
+      <div class="paper"><div id="svg-plan"></div></div>
+      <div class="meta-bar" id="meta-plan"></div>
+    </div>
+
+    <div class="memo-card" id="memo-card" hidden></div>
+
+    <div class="foot">BRG 교량 제원 현장조사 입력기 · v1 &nbsp;·&nbsp; 미측정 항목은 도면에 <b style="color:var(--dim)">?</b> 로 표시됩니다</div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   교량 제원 현장조사 입력기 — v1
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const SVGNS = "http://www.w3.org/2000/svg";
+const LS_KEY = "brg-bridge-survey-v1";
+
+/* ---------- state read/write ---------- */
+const FIELDS = ["f-name","f-loc","f-type","f-joint","f-rail","f-swrail","f-girders","f-spans","f-skew","f-length","f-date","f-memo",
+  "f-hashaunch","f-cornerhaunch","f-gw","f-gh","f-gs","f-cant","f-deck","f-hw","f-hh",
+  "f-hascurb","f-hassw","f-lanes","f-road","f-curbw","f-curbh","f-sww","f-swcw","f-swch",
+  "f-abw","f-abh","f-abbw","f-abce","f-abcop","f-piw","f-pih","f-picw","f-picl","f-pich","f-pihn",
+  "f-brw","f-brl","f-brh"];
+
+let spanVals = [25000, 30000]; // dynamic
+let currentView = "section";
+
+/* ---------- 내장 프리셋 (김포 도로시설물 위치도) ---------- */
+const PRESET_BASE = {
+  "f-name":"","f-loc":"","f-type":"steel","f-joint":"none","f-rail":"1","f-swrail":"1",
+  "f-girders":"4","f-spans":"2","f-skew":"90","f-length":"","f-date":"","f-memo":"",
+  "f-hashaunch":true,"f-cornerhaunch":false,"f-gw":"500","f-gh":"2000","f-gs":"2500","f-cant":"1750",
+  "f-deck":"250","f-hw":"300","f-hh":"200",
+  "f-hascurb":true,"f-hassw":true,"f-lanes":"2","f-road":"7000",
+  "f-curbw":"300","f-curbh":"250","f-sww":"1500","f-swcw":"200","f-swch":"200",
+  "f-abw":"1500","f-abh":"6000","f-abbw":"800","f-abce":"1200","f-abcop":"2000",
+  "f-piw":"2000","f-pih":"8000","f-picw":"2500","f-picl":"1500","f-pich":"1500","f-pihn":"300",
+  "f-brw":"400","f-brl":"500","f-brh":"100","spans":[25000,30000]
+};
+const mk = o => Object.assign({}, PRESET_BASE, o);
+const PRESETS = {
+  samjae: mk({"f-name":"샘재교","f-loc":"경기 김포시 장기동 805","f-type":"steel","f-rail":"1","f-hassw":false,"f-lanes":"4","f-hashaunch":true,
+    "f-memo":"[위치도 개략조사]\n· 강교, 왕복 4차로\n· 보도 없음 / 난간 있음\n· 가각부 헌치\n· 교대 접근 가능할 것으로 보임\n※ 경간수·사각·치수는 현장 실측 필요"}),
+  geumbit: mk({"f-name":"금빛수로7교","f-loc":"경기 김포시 장기동 1892-1","f-type":"slab","f-spans":"1","f-skew":"75","f-joint":"finger","f-rail":"1","f-hassw":true,"spans":[25000],
+    "f-memo":"[위치도 개략조사]\n· 단경간 슬라브교\n· 사교(斜角) — 각도 현장 실측 필요(우선 75° 가정)\n· 양쪽 보도 / 난간 / 핑거 조인트\n· 하부에 보도가 있어 조사하기 쉬움"}),
+  cheongsong: mk({"f-name":"청송교","f-loc":"경기 김포시 장기동 1879","f-joint":"monocell","f-rail":"1","f-hassw":true,
+    "f-memo":"[위치도 개략조사]\n· 양쪽 보도 / 난간 / 모노셀 조인트\n· 아래에 보도 있어 조사하기 좋음\n※ 형식·경간수·사각·치수 현장 확인 필요"}),
+  yonghwasa: mk({"f-name":"운양 용화사IC (램프)","f-loc":"경기 김포시 양촌읍 누산리 103-2",
+    "f-memo":"[위치도 개략조사 — 미확정]\n· 램프 G, F + 운양IC교 등 3개 교량 존재하나 확인 안 됨\n· 조창호 이사에게 확인 필요\n· 곡선 램프교 가능성 → 확정 후 평면곡선(R) 반영 예정\n※ 형식·경간·치수 전부 미확인"}),
+  gamaji: mk({"f-name":"가마지천6교","f-loc":"경기 김포시 구래동 6935-2","f-rail":"1","f-hassw":true,
+    "f-memo":"[위치도 개략조사]\n· 양쪽 보도 / 난간\n· 하부 보도 있어 조사하기 좋음\n※ 형식·경간수·사각·조인트·치수 현장 확인 필요"})
+};
+const bgImages = {section:null, elevation:null, plan:null}; // {data, opacity}
+
+/* background image underlay */
+function putBg(svg, view, VW, VH){
+  const b = bgImages[view];
+  if(!b || !b.data) return;
+  const s=(b.scale==null?100:b.scale)/100, ox=b.ox||0, oy=b.oy||0, rot=b.rot||0;
+  const img = document.createElementNS(SVGNS,"image");
+  img.setAttribute("x",0); img.setAttribute("y",0);
+  img.setAttribute("width",VW); img.setAttribute("height",VH);
+  img.setAttribute("preserveAspectRatio","xMidYMid meet");
+  img.setAttribute("opacity",(b.opacity==null?45:b.opacity)/100);
+  // 이동 + 회전 + 확대 (모두 중심 기준)
+  img.setAttribute("transform",`translate(${ox} ${oy}) translate(${VW/2} ${VH/2}) rotate(${rot}) scale(${s}) translate(${-VW/2} ${-VH/2})`);
+  img.setAttributeNS("http://www.w3.org/1999/xlink","href",b.data);
+  img.setAttribute("href",b.data);
+  svg.appendChild(img);
+}
+
+function num(id){ const v = parseFloat($(id).value); return isNaN(v)?0:v; }
+function txt(id){ return $(id).value.trim(); }
+
+function collect(){
+  const o = {};
+  FIELDS.forEach(id=>{
+    const el = $(id);
+    o[id] = el.type==="checkbox" ? el.checked : el.value;
+  });
+  o.spans = spanVals.slice();
+  return o;
+}
+function apply(o){
+  if(!o) return;
+  FIELDS.forEach(id=>{
+    if(o[id]===undefined) return;
+    const el = $(id);
+    if(el.type==="checkbox") el.checked = !!o[id]; else el.value = o[id];
+  });
+  if(Array.isArray(o.spans)) spanVals = o.spans.slice();
+}
+
+/* ---------- supports from span count ---------- */
+function supports(){
+  const n = Math.max(1, Math.round(num("f-spans")));
+  const arr = ["A1"];
+  for(let i=1;i<n;i++) arr.push("P"+i);
+  arr.push("A2");
+  return arr; // length = n+1
+}
+
+/* ---------- dynamic span inputs ---------- */
+function rebuildSpanInputs(){
+  const n = Math.max(1, Math.round(num("f-spans")));
+  while(spanVals.length < n) spanVals.push(spanVals.length? spanVals[spanVals.length-1] : 20000);
+  spanVals.length = n;
+  const box = $("span-inputs");
+  box.innerHTML = "";
+  const sup = supports();
+  for(let i=0;i<n;i++){
+    const f = document.createElement("div");
+    f.className = "field";
+    f.innerHTML = `<label>S${i+1} <span class="tag">${sup[i]}–${sup[i+1]}</span></label>
+      <div class="unit"><input type="number" data-span="${i}" value="${spanVals[i]||''}"></div>`;
+    box.appendChild(f);
+  }
+  box.querySelectorAll("input[data-span]").forEach(inp=>{
+    inp.addEventListener("input", e=>{
+      spanVals[+e.target.dataset.span] = parseFloat(e.target.value)||0;
+      render();
+    });
+  });
+}
+
+/* ---------- supports preview chips ---------- */
+function renderSupportsPreview(){
+  const box = $("supports-preview");
+  box.innerHTML = "";
+  supports().forEach(s=>{
+    const c = document.createElement("span");
+    c.className = "support-chip " + (s[0]==="A"?"abut":"pier");
+    c.textContent = s;
+    box.appendChild(c);
+  });
+}
+
+/* ============================================================
+   SVG drawing helpers
+   ============================================================ */
+function el(tag, attrs, children){
+  const e = document.createElementNS(SVGNS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(children) [].concat(children).forEach(c=> c && e.appendChild(c));
+  return e;
+}
+function fmt(v){
+  if(v===null || v===undefined || v===0 || v==="" || isNaN(v)) return "?";
+  return Math.round(v).toLocaleString();
+}
+let FILL_OP=1;   // 배경 있을 때 도면 채움을 반투명으로 (배경이 비치도록)
+function rect(x,y,w,h,fill,stroke){
+  return el("rect",{x,y,width:Math.max(0,w),height:Math.max(0,h),fill:fill||"none",
+    "fill-opacity":FILL_OP,stroke:stroke||"var(--draw)","stroke-width":1.2});
+}
+function line(x1,y1,x2,y2,opt){
+  return el("line",{x1,y1,x2,y2,stroke:(opt&&opt.color)||"var(--draw)",
+    "stroke-width":(opt&&opt.w)||1.2,"stroke-dasharray":(opt&&opt.dash)||"none"});
+}
+function label(x,y,s,cls,anchor,size){
+  const t = el("text",{x,y,"text-anchor":anchor||"middle",
+    "font-size":size||12, class:cls||"svg-label"});
+  t.textContent = s;
+  return t;
+}
+/* horizontal dimension line with tick marks + value */
+function hDim(g,x1,x2,y,val,opt){
+  opt = opt||{};
+  const col = "var(--dim)";
+  const ext = opt.ext||0;   // extension guide length from object
+  if(ext){
+    g.appendChild(line(x1,y-ext*opt.dir,x1,y+2*opt.dir,{color:col,w:.7}));
+    g.appendChild(line(x2,y-ext*opt.dir,x2,y+2*opt.dir,{color:col,w:.7}));
+  }
+  g.appendChild(line(x1,y,x2,y,{color:col,w:1}));
+  // ticks (45deg)
+  [x1,x2].forEach(x=> g.appendChild(line(x-3,y+3,x+3,y-3,{color:col,w:1.1})));
+  const mid=(x1+x2)/2;
+  const tv = label(mid, y-4, fmt(val), "svg-dim", "middle", opt.size||11.5);
+  // background chip for readability
+  const w = (fmt(val).length)*6.6+8;
+  g.appendChild(el("rect",{x:mid-w/2,y:y-15,width:w,height:13,rx:3,fill:"var(--paper)","fill-opacity":.85}));
+  g.appendChild(tv);
+}
+/* vertical dimension line */
+function vDim(g,x,y1,y2,val,opt){
+  opt=opt||{};
+  const col="var(--dim)";
+  g.appendChild(line(x,y1,x,y2,{color:col,w:1}));
+  [y1,y2].forEach(y=> g.appendChild(line(x-3,y+3,x+3,y-3,{color:col,w:1.1})));
+  const mid=(y1+y2)/2;
+  const s=fmt(val);
+  const w=s.length*6.6+8;
+  g.appendChild(el("rect",{x:x-w/2,y:mid-7,width:w,height:13,rx:3,fill:"var(--paper)","fill-opacity":.85}));
+  const t=label(x,mid+3.5,s,"svg-dim","middle",opt.size||11.5);
+  g.appendChild(t);
+}
+
+/* ============================================================
+   CROSS SECTION
+   ============================================================ */
+function drawSection(){
+  const host = $("svg-section");
+  host.innerHTML="";
+  FILL_OP = bgImages.section ? 0.3 : 1;
+  const type = txt("f-type");
+  const slab = type==="slab";
+  const nG = slab ? 0 : Math.max(1, Math.round(num("f-girders")));
+
+  const gw=num("f-gw"), gh=num("f-gh"), gs=num("f-gs"), cant=num("f-cant");
+  const deck=num("f-deck"), hw=num("f-hw");
+  const hasHaunch=$("f-hashaunch").checked;
+  const hh=hasHaunch?num("f-hh"):0;
+  const hasCurb=$("f-hascurb").checked, hasSw=$("f-hassw").checked;
+  const road=num("f-road"), curbw=num("f-curbw"), curbh=num("f-curbh");
+  const sww=num("f-sww"), swcw=num("f-swcw"), swch=num("f-swch");
+
+  // widths
+  const halfTop = (hasCurb?curbw:0) + (hasSw?sww:0) + (hasSw?swcw:0);
+  const topW = road + 2*halfTop;
+  const girderSysW = nG>1 ? (nG-1)*gs + 2*cant : (nG===1? 2*cant : topW);
+  const slabW = Math.max(topW, girderSysW, 1000);
+
+  // scale to fit
+  const VW = 900, marginX = 90;
+  const scale = (VW - 2*marginX) / slabW;
+  const cx = VW/2;
+  const px = mm => mm*scale;
+
+  // vertical layout (top-down): topEls -> slab -> girders -> bearing
+  const yTop = 70;                       // baseline top of curbs
+  const maxTopH = Math.max(curbh, swch, 300);
+  const ySlabTop = yTop + px(maxTopH);
+  const slabPx = Math.max(px(deck), 10);
+  const ySlabBot = ySlabTop + slabPx;
+  const girderPx = Math.max(px(gh), 24);
+  const yGirderBot = ySlabBot + (hh>0?Math.max(px(hh),6):0) + girderPx;
+  const VH = yGirderBot + 150;
+
+  const svg = el("svg",{viewBox:`0 0 ${VW} ${VH}`,preserveAspectRatio:"xMidYMid meet"});
+  putBg(svg,"section",VW,VH);
+  const g = el("g",{});
+  svg.appendChild(g);
+
+  const slabX = cx - px(slabW)/2;
+
+  // --- deck slab ---
+  g.appendChild(rect(slabX, ySlabTop, px(slabW), slabPx, "var(--fill-slab)"));
+
+  // --- top elements (symmetric) ---
+  function topStack(dir){ // dir -1 left, +1 right; build from outer edge inward
+    let edge = dir<0 ? slabX : slabX+px(slabW);
+    const seq=[];
+    if(hasCurb && curbw>0) seq.push({w:curbw,h:curbh,f:"var(--fill-sub)",name:"연석"});
+    if(hasSw && sww>0)     seq.push({w:sww,h:80,f:"var(--fill-slab)",name:"보도"});
+    if(hasSw && swcw>0)    seq.push({w:swcw,h:swch,f:"var(--fill-sub)",name:"보도연석"});
+    let curX = edge;
+    seq.forEach(s=>{
+      const w=px(s.w), h=px(s.h);
+      const x = dir<0 ? curX : curX-w;
+      g.appendChild(rect(x, ySlabTop-h, w, h, s.f));
+      curX = dir<0 ? curX+w : curX-w;
+    });
+    return curX;
+  }
+  const leftInner = topStack(-1);
+  const rightInner = topStack(1);
+  // road surface line
+  g.appendChild(line(leftInner, ySlabTop, rightInner, ySlabTop, {color:"var(--draw-2)",w:2}));
+
+  // railing — outer edges + (보도 있으면) 보도·차도 경계 방호난간
+  if(txt("f-rail")==="1"){
+    const railH=20;
+    function post(rx, top){
+      g.appendChild(line(rx, top, rx, top-railH,{color:"var(--draw)",w:2}));
+      g.appendChild(line(rx-7, top-railH+5, rx+7, top-railH+5,{color:"var(--draw)",w:1.5}));
+      g.appendChild(line(rx-7, top-railH, rx+7, top-railH,{color:"var(--draw)",w:2}));
+    }
+    const topEl = ySlabTop - px(hasCurb?curbh:0) - 2;
+    post(slabX+5, topEl); post(slabX+px(slabW)-5, topEl);
+    // 보도-차도 경계 난간 (보도연석 위) — 별도 체크
+    if(hasSw && txt("f-swrail")==="1"){
+      const bTop = ySlabTop - px(swch) - 2;
+      post(leftInner, bTop); post(rightInner, bTop);
+    }
+  }
+
+  // --- girders + haunch ---
+  if(nG>0){
+    const totalG = nG>1 ? (nG-1)*gs : 0;
+    const startCx = cx - px(totalG)/2;
+    for(let i=0;i<nG;i++){
+      const gcx = nG>1 ? startCx + px(gs)*i : cx;
+      const gx = gcx - px(gw)/2;
+      // haunch (trapezoid) between slab bottom and girder top
+      if(hh>0){
+        const hpx=Math.max(px(hh),6), hwpx=px(hw);
+        const gpTop = ySlabBot;
+        const pts=`${gx-hwpx},${gpTop} ${gx+px(gw)+hwpx},${gpTop} ${gx+px(gw)},${gpTop+hpx} ${gx},${gpTop+hpx}`;
+        g.appendChild(el("polygon",{points:pts,fill:"var(--fill-girder)","fill-opacity":FILL_OP,stroke:"var(--draw)","stroke-width":1}));
+      }
+      const gyTop = ySlabBot + (hh>0?Math.max(px(hh),6):0);
+      g.appendChild(rect(gx, gyTop, px(gw), girderPx, "var(--fill-girder)"));
+      // girder label
+      g.appendChild(label(gcx, gyTop+girderPx/2+4, "G"+(i+1), "svg-note",null,11));
+    }
+  } else {
+    // slab bridge: solid slab, note
+    g.appendChild(label(cx, ySlabTop+slabPx/2+4, "슬래브 (거더 없음)", "svg-note",null,12));
+  }
+
+  /* ---------- dimensions (계단식 배치로 겹침 방지) ---------- */
+  const base = yGirderBot;   // 거더 하단
+  // 전체폭 (상단)
+  hDim(g, slabX, slabX+px(slabW), yTop-32, slabW, {ext:14,dir:1});
+  g.appendChild(label(cx, yTop-52, "전체 폭", "svg-note",null,10.5));
+  // 상판 두께 (우측 세로)
+  vDim(g, slabX+px(slabW)+20, ySlabTop, ySlabBot, deck, {size:10});
+  g.appendChild(label(slabX+px(slabW)+40, (ySlabTop+ySlabBot)/2+3, "t", "svg-note","start",10));
+  // 연석 높이 (좌측 세로)
+  if(hasCurb&&curbh>0) vDim(g, slabX-16, ySlabTop-px(curbh), ySlabTop, curbh, {size:9.5});
+
+  if(nG>0){
+    const totalG = nG>1 ? (nG-1)*gs : 0;
+    const startCx = cx - px(totalG)/2;
+    const g0cx = nG>1? startCx : cx, g0x = g0cx-px(gw)/2;
+    const gyTop = ySlabBot + (hh>0?Math.max(px(hh),6):0);
+    // 거더 높이(좌측) · 거더 폭(첫 거더 아래)
+    vDim(g, g0x-14, gyTop, gyTop+girderPx, gh, {size:9.5});
+    hDim(g, g0x, g0x+px(gw), base+11, gw, {size:9});
+    // C.T.C 체인 (캔틸레버 + 간격)
+    const chainY=base+34;
+    hDim(g, slabX, startCx, chainY, cant, {size:9.5});
+    for(let i=0;i<nG-1;i++) hDim(g, startCx+px(gs)*i, startCx+px(gs)*(i+1), chainY, gs, {size:9.5});
+    hDim(g, startCx+px(totalG), slabX+px(slabW), chainY, cant, {size:9.5});
+    g.appendChild(label(cx, chainY+16, "거더 간격(C.T.C) · 최외측 캔틸레버", "svg-note",null,9.5));
+  }
+  // 차도폭
+  if(road>0){
+    hDim(g, leftInner, rightInner, base+72, road, {size:10.5});
+    g.appendChild(label((leftInner+rightInner)/2, base+86, "차도폭", "svg-note",null,10));
+  }
+  // 연석 / 보도 / 보도연석 (좌측부터, 값만)
+  let curX=slabX;
+  const parts=[];
+  if(hasCurb&&curbw>0) parts.push(curbw);
+  if(hasSw&&sww>0) parts.push(sww);
+  if(hasSw&&swcw>0) parts.push(swcw);
+  parts.forEach(w=>{ hDim(g, curX, curX+px(w), base+108, w, {size:9}); curX+=px(w); });
+
+  host.appendChild(svg);
+
+  // meta
+  $("meta-section").innerHTML =
+    `형식 <b>${typeName(type)}</b> · 거더 <b>${slab?'—':nG+'주형'}</b> · 산정 전체폭 <b>${fmt(slabW)}</b>mm · 차도폭 <b>${fmt(road)}</b>mm`;
+}
+
+function typeName(t){ return t==="steel"?"강교":t==="girder"?"거더교":"슬래브교"; }
+
+/* ============================================================
+   ELEVATION
+   ============================================================ */
+function drawElevation(){
+  const host = $("svg-elevation");
+  host.innerHTML="";
+  FILL_OP = bgImages.elevation ? 0.3 : 1;
+  const sup = supports();          // A1,P..,A2
+  const nSpan = sup.length-1;
+  const spans = spanVals.slice(0,nSpan).map(v=> v>0?v:20000);
+  const totalL = spans.reduce((a,b)=>a+b,0);
+
+  const gh=num("f-gh"), deck=num("f-deck");
+  const abw=num("f-abw"), abh=num("f-abh"), abcop=num("f-abcop");
+  const abbw=num("f-abbw"), abce=num("f-abce");
+  const piw=num("f-piw"), pih=num("f-pih"), picw=num("f-picw"), pich=num("f-pich"), pihn=num("f-pihn");
+  const brl=num("f-brl"), brh=num("f-brh");
+  const joint=txt("f-joint"), hasJoint = joint!=="none" && joint!=="poured";
+
+  const VW=980, marginX=96, marginTop=78;
+  const drawW = VW-2*marginX;
+  const scaleX = drawW/Math.max(totalL,1);
+  const maxH = Math.max(abh, pih+pich, 3000)+ (gh+deck);
+  const drawH = 330;
+  const scaleY = drawH/Math.max(maxH,1);
+  const pxX=mm=>mm*scaleX, pxY=mm=>mm*scaleY;
+
+  const yDeckTop = marginTop;
+  const girderPx = Math.max(pxY(gh+deck), 20);
+  const seatY = yDeckTop + girderPx;                 // 거더 하단 = 받침 상단
+  const bhpx=Math.max(pxY(brh),5), bwpx=Math.max(pxX(brl),10);
+  const capTop = seatY + bhpx;                        // 지점 코핑/교좌 상단 (받침 아래)
+  const groundY = capTop + Math.max(pxY(Math.max(abh, pih+pich)), 120);
+  const VH = groundY + 98;
+
+  const svg = el("svg",{viewBox:`0 0 ${VW} ${VH}`,preserveAspectRatio:"xMidYMid meet"});
+  putBg(svg,"elevation",VW,VH);
+  const g = el("g",{});
+  svg.appendChild(g);
+
+  const xs=[marginX];
+  spans.forEach(s=> xs.push(xs[xs.length-1]+pxX(s)));
+
+  // ground line
+  g.appendChild(line(marginX-46, groundY, VW-marginX+46, groundY,{color:"var(--draw-2)",w:1.4}));
+  for(let x=marginX-36;x<VW-marginX+46;x+=14){
+    g.appendChild(line(x,groundY,x-7,groundY+8,{color:"var(--draw-2)",w:.7}));
+  }
+
+  // 상부(거더 밴드) — 먼저 그림. 지점·받침은 이 아래에 있어 안 가려지고, 치수는 뒤에 그려 위로 올림
+  g.appendChild(rect(xs[0], yDeckTop, xs[xs.length-1]-xs[0], girderPx, "var(--fill-girder)"));
+  g.appendChild(line(xs[0], yDeckTop, xs[xs.length-1], yDeckTop,{color:"var(--draw)",w:1.6}));
+
+  function drawBearing(x){ g.appendChild(rect(x-bwpx/2, seatY, bwpx, bhpx, "var(--fill-bear)")); }
+  function drawJoint(x){   // 신축이음 마커 (교대 위)
+    g.appendChild(line(x-4,yDeckTop-3,x+4,yDeckTop-3,{color:"var(--dim)",w:1.7}));
+    g.appendChild(line(x-4,yDeckTop-6.5,x+4,yDeckTop-6.5,{color:"var(--dim)",w:1.7}));
+  }
+
+  // ---- 지점 (교대=벽식, 교각=코핑+기둥). 치수는 A1·첫교각에만 표기(겹침 방지) ----
+  const firstPier = sup.findIndex(s=>s[0]==="P");
+  sup.forEach((s,i)=>{
+    const x=xs[i], isAb=s[0]==="A";
+    if(isAb){
+      const dir=(i===0)?-1:1;                          // 바깥 방향
+      // 흉벽~교좌센터(a) · 교좌센터~코핑끝(b) → 코핑상단폭 = a+b
+      let a,bb,capUsed;
+      if(abbw>0 && abce>0){ a=abbw; bb=abce; capUsed=abbw+abce; }
+      else { capUsed=abcop>0?abcop:2000; a=capUsed*0.45; bb=capUsed*0.55; }
+      const aPx=pxX(a), bPx=pxX(bb), capH=Math.max(pxY(1200),13);
+      const stemW=Math.max(pxX(abw),24), bwT=Math.max(stemW*0.28,6);
+      const capL = dir<0 ? x-aPx : x-bPx;              // 코핑 왼끝
+      const capR = dir<0 ? x+bPx : x+aPx;              // 코핑 오른끝
+      g.appendChild(rect(capL, capTop, capR-capL, capH, "var(--fill-sub)"));
+      const stemCx=(capL+capR)/2;                      // 구체(중앙)
+      g.appendChild(rect(stemCx-stemW/2, capTop+capH, stemW, groundY-(capTop+capH), "var(--fill-sub)"));
+      const bwX = dir<0 ? capL : capR-bwT;             // 흉벽(바깥, 상판까지)
+      g.appendChild(rect(bwX, yDeckTop, bwT, seatY-yDeckTop, "var(--fill-sub)"));
+      drawBearing(x);                                  // 교좌 = x (센터)
+      if(hasJoint) drawJoint(x);
+      g.appendChild(label(x, groundY+24, s, "svg-label",null,13));
+      if(i===0){                                       // A1에만 치수
+        vDim(g, capL-18, capTop, groundY, abh, {size:9.5});
+        // 코핑상단폭(a+b)은 코핑 아래 여유공간에 (거더·코핑에 안 가리게)
+        hDim(g, capL, capR, capTop+capH+13, capUsed, {size:9});
+      }
+    } else {
+      const capW=Math.max(pxX(picw),18);               // 코핑 폭(종단면에 보이는 값)
+      const capH=Math.max(pxY(pich),13);
+      const colW=Math.max(capW*0.5,16);
+      const hnpx=Math.max(pxX(pihn),0);                // 헌치부(코핑 밑 브래킷)
+      const capBot=capTop+capH, colTop=capBot;
+      g.appendChild(rect(x-capW/2, capTop, capW, capH, "var(--fill-sub)"));
+      if(hnpx>1){
+        g.appendChild(el("polygon",{points:`${x-colW/2-hnpx},${capBot} ${x-colW/2},${capBot} ${x-colW/2},${capBot+hnpx}`,fill:"var(--fill-sub)","fill-opacity":FILL_OP,stroke:"var(--draw)","stroke-width":1}));
+        g.appendChild(el("polygon",{points:`${x+colW/2+hnpx},${capBot} ${x+colW/2},${capBot} ${x+colW/2},${capBot+hnpx}`,fill:"var(--fill-sub)","fill-opacity":FILL_OP,stroke:"var(--draw)","stroke-width":1}));
+      }
+      g.appendChild(rect(x-colW/2, colTop, colW, groundY-colTop, "var(--fill-sub)"));
+      drawBearing(x);
+      g.appendChild(label(x, groundY+24, s, "svg-label",null,13));
+      if(i===firstPier){                               // 첫 교각에만 치수
+        hDim(g, x-capW/2, x+capW/2, capTop-8, picw, {size:9});
+        vDim(g, x+capW/2+15, capTop, capBot, pich, {size:9});
+        vDim(g, x-capW/2-15, colTop, groundY, pih, {size:9.5});
+      }
+    }
+  });
+
+  // 경간장 + 교량연장 (아래쪽에 계단식 배치)
+  for(let i=0;i<spans.length;i++){
+    hDim(g, xs[i], xs[i+1], groundY+48, spans[i], {size:11});
+    g.appendChild(label((xs[i]+xs[i+1])/2, groundY+63, "S"+(i+1), "svg-note",null,10));
+  }
+  hDim(g, xs[0], xs[xs.length-1], groundY+80, totalL, {size:11});
+  g.appendChild(label((xs[0]+xs[xs.length-1])/2, groundY+94, "교량연장 L", "svg-note",null,10));
+
+  host.appendChild(svg);
+
+  $("meta-elevation").innerHTML =
+    `경간 <b>${nSpan}</b> · 교량연장 <b>${fmt(totalL)}</b>mm · 지점 <b>${sup.join(" · ")}</b> · 조인트 <b>${jointName()}</b>`;
+}
+
+/* ============================================================
+   PLAN (평면도) — 사각(연장×폭)만 주면 거더선·지점선 자동 채움
+   ============================================================ */
+function drawPlan(){
+  const host = $("svg-plan");
+  host.innerHTML="";
+  FILL_OP = bgImages.plan ? 0.22 : 1;
+  const type=txt("f-type"), slab=type==="slab";
+  const nG = slab?0:Math.max(1,Math.round(num("f-girders")));
+  const gs=num("f-gs"), cant=num("f-cant");
+  const sup = supports();
+  const nSpan = sup.length-1;
+  const spans = spanVals.slice(0,nSpan).map(v=> v>0?v:20000);
+  const totalL = spans.reduce((a,b)=>a+b,0);
+
+  // deck width (transverse) — reuse section logic
+  const hasCurb=$("f-hascurb").checked, hasSw=$("f-hassw").checked;
+  const road=num("f-road"), curbw=num("f-curbw"), sww=num("f-sww"), swcw=num("f-swcw");
+  const halfTop=(hasCurb?curbw:0)+(hasSw?sww:0)+(hasSw?swcw:0);
+  const topW=road+2*halfTop;
+  const girderSysW = nG>1?(nG-1)*gs+2*cant:(nG===1?2*cant:topW);
+  const slabW=Math.max(topW,girderSysW,1000);
+  const abw=num("f-abw"), piw=num("f-piw");
+
+  // skew angle (사각): ±90 = 직교. 부호로 기우는 방향이 바뀜(+/−). |각|<90 이 사교.
+  let skew=num("f-skew"); if(!skew) skew=90; skew=Math.max(-90,Math.min(90,skew));
+  if(Math.abs(skew)<10) skew = skew<0?-10:10;
+  const skewRad=skew*Math.PI/180;
+  const dxMm = Math.abs(skew)>=89.9 ? 0 : slabW/Math.tan(skewRad);
+
+  const VW=980, mx=110, myTop=70, myBot=96;
+  const drawW=VW-2*mx;
+  // include skew offset in the horizontal footprint so it fits
+  const scale=drawW/Math.max(totalL+Math.abs(dxMm),1);
+  const bandH=Math.min(Math.max(slabW*scale,120),300);
+  const scaleY=bandH/Math.max(slabW,1);
+  const pxX=mm=>mm*scale, pxY=mm=>mm*scaleY;
+  const VH=myTop+bandH+myBot;
+  const y0=myTop, y1=myTop+bandH;
+  const dxpx=pxX(dxMm);
+
+  const svg=el("svg",{viewBox:`0 0 ${VW} ${VH}`,preserveAspectRatio:"xMidYMid meet"});
+  putBg(svg,"plan",VW,VH);
+  const g=el("g",{}); svg.appendChild(g);
+
+  // support centerline stations along axis (at deck centerline)
+  const x0 = mx + (dxpx>0?dxpx/2:0);
+  const xs=[x0]; spans.forEach(s=> xs.push(xs[xs.length-1]+pxX(s)));
+  const xL=xs[0], xR=xs[xs.length-1];
+  // skewed x at a given y (top edge y0 → -dx/2, bottom edge y1 → +dx/2)
+  const frac = y => (y-y0)/(y1-y0);          // 0..1
+  const skewShift = y => (frac(y)-0.5)*dxpx; // px x-shift for a station line
+  const edgeXL = y => xL + skewShift(y);
+  const edgeXR = y => xR + skewShift(y);
+
+  // deck outline — parallelogram (+ 가각부 헌치 = 모서리 모따기)
+  let corners=[[edgeXL(y0),y0],[edgeXR(y0),y0],[edgeXR(y1),y1],[edgeXL(y1),y1]];
+  if($("f-cornerhaunch").checked){
+    const c=Math.min(bandH*0.16, pxX(2500), 24);
+    const chamf=[];
+    const n=corners.length;
+    for(let i=0;i<n;i++){
+      const V=corners[i], P=corners[(i-1+n)%n], N=corners[(i+1)%n];
+      const u=(A,B)=>{const dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy)||1;return [dx/L,dy/L];};
+      const up=u(V,P), un=u(V,N);
+      chamf.push([V[0]+up[0]*c, V[1]+up[1]*c]);
+      chamf.push([V[0]+un[0]*c, V[1]+un[1]*c]);
+    }
+    corners=chamf;
+  }
+  const deck=corners.map(p=>`${p[0]},${p[1]}`).join(" ");
+  g.appendChild(el("polygon",{points:deck,fill:"var(--fill-slab)","fill-opacity":FILL_OP,stroke:"var(--draw)","stroke-width":1.4}));
+
+  // support bands (slanted parallelograms following skew)
+  sup.forEach((s,i)=>{
+    const isAb=s[0]==="A", w=Math.max(pxX(isAb?abw:piw),6);
+    const xt=xs[i]+skewShift(y0-6), xb=xs[i]+skewShift(y1+6);
+    const pts=`${xt-w/2},${y0-6} ${xt+w/2},${y0-6} ${xb+w/2},${y1+6} ${xb-w/2},${y1+6}`;
+    g.appendChild(el("polygon",{points:pts,fill:"var(--fill-sub)","fill-opacity":Math.min(.55,FILL_OP+0.15),
+      stroke:"var(--draw)","stroke-width":1,"stroke-dasharray":"4 3"}));
+    g.appendChild(label(xs[i]+skewShift(y1+6),y1+24,s,"svg-label",null,13));
+  });
+
+  // girder lines (longitudinal, horizontal) clipped to slanted end edges
+  if(nG>0){
+    const totalG=nG>1?(nG-1)*gs:0;
+    const startY=(y0+y1)/2 - pxY(totalG)/2;
+    for(let i=0;i<nG;i++){
+      const gy = nG>1?startY+pxY(gs)*i:(y0+y1)/2;
+      g.appendChild(line(edgeXL(gy),gy,edgeXR(gy),gy,{color:"var(--draw-2)",w:1.4,dash:"2 4"}));
+      g.appendChild(label(edgeXL(gy)-12,gy+4,"G"+(i+1),"svg-note","end",10));
+      // bearings at each support (intersection of girder line & skewed support line)
+      xs.forEach(x=> g.appendChild(rect(x+skewShift(gy)-4,gy-4,8,8,"var(--fill-bear)")));
+    }
+  } else {
+    g.appendChild(label((xL+xR)/2,(y0+y1)/2+4,"슬래브 (거더 없음)","svg-note",null,12));
+  }
+
+  // dims — span lengths on the (skewed) top edge, total below them
+  const topShift=skewShift(y0);
+  for(let i=0;i<spans.length;i++) hDim(g,xs[i]+topShift,xs[i+1]+topShift,y0-18,spans[i],{size:11});
+  hDim(g,edgeXL(y0),edgeXR(y0),y0-42,totalL,{size:11});
+  g.appendChild(label(edgeXR(y0)+6,y0-46,"교량연장 L(교축)","svg-note","start",9.5));
+  vDim(g,mx-46,y0,y1,slabW,{size:11});
+  g.appendChild(label(mx-46,y0-10,"직각폭","svg-note","middle",10));
+  if(nG>1){
+    const totalG=(nG-1)*gs, startY=(y0+y1)/2 - pxY(totalG)/2;
+    vDim(g,xR+40,startY,startY+pxY(gs),gs,{size:10});
+    g.appendChild(label(xR+40,startY-8,"C.T.C","svg-note","middle",9.5));
+  }
+  // skew angle callout
+  g.appendChild(label(edgeXL(y1)+40,y1-14, "사각 "+skew+"°"+(Math.abs(skew)>=90?" (직교)":""), "svg-dim","start",12));
+
+  host.appendChild(svg);
+  const skewLen = Math.abs(skew)<90 ? slabW/Math.abs(Math.sin(skewRad)) : slabW;
+  $("meta-plan").innerHTML =
+    `교축연장 <b>${fmt(totalL)}</b> × 직각폭 <b>${fmt(slabW)}</b>mm · 사각 <b>${skew}°</b>${skew<90?` · 사교 지점선길이 ≈<b>${fmt(skewLen)}</b>`:``} · 지점 <b>${nSpan+1}</b>개 · 거더 <b>${slab?'—':nG+'주형'}</b>`;
+}
+
+/* ============================================================
+   VALIDATION — 치수 정합성 (맞다/아니다)
+   ============================================================ */
+function validate(){
+  const box=$("validation");
+  box.innerHTML="";
+  document.querySelectorAll(".field input.invalid").forEach(i=>i.classList.remove("invalid"));
+
+  const type=txt("f-type"), slab=type==="slab";
+  const nG=slab?0:Math.max(1,Math.round(num("f-girders")));
+  const hasCurb=$("f-hascurb").checked, hasSw=$("f-hassw").checked;
+  const road=num("f-road"),curbw=num("f-curbw"),sww=num("f-sww"),swcw=num("f-swcw");
+  const gs=num("f-gs"),cant=num("f-cant");
+
+  const checks=[];
+
+  // 1) 전체폭 정합: 상판요소합 vs 거더배치폭
+  if(!slab && nG>0){
+    const topSum=road+2*((hasCurb?curbw:0)+(hasSw?sww:0)+(hasSw?swcw:0));
+    const girderSysW=nG>1?(nG-1)*gs+2*cant:2*cant;
+    if(topSum>0 && girderSysW>0){
+      const d=Math.abs(topSum-girderSysW);
+      const tol=Math.max(50, topSum*0.02);
+      checks.push({ok:d<=tol,
+        label: d<=tol ? `전체폭 정합 (${fmt(topSum)})`
+                       : `전체폭 불일치: 상판 ${fmt(topSum)} ↔ 거더 ${fmt(girderSysW)} (차 ${fmt(d)})`,
+        fields: d<=tol?[]:["f-road","f-gs","f-cant","f-curbw","f-sww","f-swcw"]});
+    }
+  }
+
+  // 2) 헌치 높이 vs 거더높이 (헌치가 거더보다 크면 오류)
+  if($("f-hashaunch").checked){
+    const hh=num("f-hh"), gh=num("f-gh");
+    if(hh>0 && gh>0 && hh>=gh)
+      checks.push({ok:false,label:`헌치높이(${fmt(hh)}) ≥ 거더높이(${fmt(gh)})`,fields:["f-hh","f-gh"]});
+  }
+
+  // 3) 미측정 경간
+  const emptySpans=[];
+  spanVals.forEach((v,i)=>{ if(!(v>0)) emptySpans.push("S"+(i+1)); });
+  if(emptySpans.length)
+    checks.push({ok:false,label:`미측정 경간: ${emptySpans.join(", ")}`,fields:[]});
+
+  // 3-b) 교량연장(위성) vs Σ경간장
+  const Lgiven=num("f-length");
+  const Lsum=spanVals.reduce((a,b)=>a+(b>0?b:0),0);
+  if(Lgiven>0 && Lsum>0){
+    const d=Math.abs(Lgiven-Lsum);
+    const tol=Math.max(300, Lgiven*0.03);
+    checks.push({ok:d<=tol,
+      label: d<=tol ? `교량연장 정합 (Σ경간 ${fmt(Lsum)})`
+                     : `연장 불일치: 입력 ${fmt(Lgiven)} ↔ Σ경간 ${fmt(Lsum)} (차 ${fmt(d)})`,
+      fields: d<=tol?[]:["f-length"]});
+  }
+
+  // 4) 미측정 필수 제원
+  const req=[["f-gh","거더높이"],["f-deck","상판두께"],["f-road","차도폭"],
+             ["f-abh","교대높이"],["f-pih","교각높이"]];
+  const missing=req.filter(([id])=> !(num(id)>0));
+  if(missing.length)
+    checks.push({ok:false,label:`미측정: ${missing.map(m=>m[1]).join(", ")}`,fields:missing.map(m=>m[0])});
+
+  // render
+  const bad=checks.filter(c=>!c.ok);
+  const sum=document.createElement("span");
+  sum.className="vchip summary "+(bad.length?"bad":"ok");
+  sum.innerHTML=`<span class="ico">${bad.length?"✕":"✓"}</span> ${bad.length?bad.length+"건 확인 필요":"치수 정합 OK"}`;
+  box.appendChild(sum);
+
+  checks.forEach(c=>{
+    const chip=document.createElement("span");
+    chip.className="vchip "+(c.ok?"ok":"bad");
+    chip.innerHTML=`<span class="ico">${c.ok?"✓":"✕"}</span> ${c.label}`;
+    box.appendChild(chip);
+    if(!c.ok) c.fields.forEach(id=>{ const el=$(id); if(el) el.classList.add("invalid"); });
+  });
+}
+
+/* ---------- joint names ---------- */
+const JOINT={none:"조인트 미확인",finger:"핑거 조인트",monocell:"모노셀 조인트",
+  rail:"레일형 조인트",poured:"포어드씰(무조인트)",etc:"기타 조인트"};
+function jointName(){ return JOINT[txt("f-joint")]||"조인트 미확인"; }
+
+/* ---------- 현장 메모 카드 ---------- */
+function renderMemoCard(){
+  const card=$("memo-card");
+  const name=txt("f-name"), loc=txt("f-loc"), memo=$("f-memo").value.trim();
+  const rail = txt("f-rail")==="1";
+  const hasSw=$("f-hassw").checked;
+  const badges=[typeName(txt("f-type")), jointName(), rail?"난간 있음":"난간 없음",
+    (hasSw?"보도 있음":"보도 없음"), "사각 "+(num("f-skew")||90)+"°"];
+  card.hidden=false;
+  card.innerHTML=
+    `<div class="mc-head">
+       <span class="mc-title">${name||"(교량명 미입력)"}</span>
+       <span class="mc-loc">${loc||""}</span>
+       <span class="mc-badges">${badges.map(b=>`<span class="badge">${b}</span>`).join("")}</span>
+     </div>
+     <div class="mc-memo ${memo?"":"mc-empty"}">${memo?escapeHtml(memo):"현장 메모 없음 — 위치도 개략조사 내용을 옮겨두세요."}</div>`;
+}
+function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+/* ============================================================
+   render + wiring
+   ============================================================ */
+let rafId=null;
+function render(){
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(()=>{
+    // enable/disable girder count
+    const slab = txt("f-type")==="slab";
+    $("f-girders").disabled = slab;
+    // 교대 코핑상단폭 = 흉벽~교좌(a) + 교좌~코핑끝(b)
+    const _a=num("f-abbw"), _b=num("f-abce");
+    if(_a>0 && _b>0){ const v=Math.round(_a+_b); if(+$("f-abcop").value!==v) $("f-abcop").value=v; }
+    renderSupportsPreview();
+    drawSection();
+    drawElevation();
+    drawPlan();
+    validate();
+    renderMemoCard();
+    save();
+  });
+}
+function save(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(collect())); }catch(e){}
+}
+function load(){
+  try{
+    const o = JSON.parse(localStorage.getItem(LS_KEY)||"null");
+    if(o) apply(o);
+  }catch(e){}
+}
+
+/* wire inputs */
+FIELDS.forEach(id=>{
+  const el=$(id);
+  const ev = (el.type==="checkbox"||el.tagName==="SELECT") ? "change":"input";
+  el.addEventListener(ev, ()=>{
+    if(id==="f-spans") rebuildSpanInputs();
+    render();
+  });
+});
+
+/* 토스트 (아티팩트 샌드박스는 alert/confirm이 막혀서 사용) */
+let _toastEl=null,_toastT=null;
+function toast(msg){
+  if(!_toastEl){ _toastEl=document.createElement("div"); _toastEl.className="toast"; document.body.appendChild(_toastEl); }
+  _toastEl.textContent=msg; _toastEl.classList.add("show");
+  clearTimeout(_toastT); _toastT=setTimeout(()=>_toastEl.classList.remove("show"),2200);
+}
+
+/* 내장 프리셋 선택 (confirm 없이 즉시 적용) */
+$("preset-pick").addEventListener("change", e=>{
+  const key=e.target.value;
+  if(!key) return;
+  apply(PRESETS[key]);
+  rebuildSpanInputs();
+  render();
+  toast("‘"+PRESETS[key]["f-name"]+"’ 프리셋을 불러왔습니다 (배경 유지)");
+});
+
+/* tabs */
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    currentView = t.dataset.view;
+    $("view-"+currentView).classList.add("active");
+    refreshBgToolbar();
+  });
+});
+
+/* background image underlay controls (apply to active view) */
+function refreshBgToolbar(){
+  const b=bgImages[currentView];
+  const on = !!(b&&b.data);
+  $("bg-name").textContent = on ? (b.name||"배경 있음") : "배경 없음";
+  $("bg-op").value = on&&b.opacity!=null ? b.opacity : 45;
+  $("bg-scale").value = on&&b.scale!=null ? b.scale : 100;
+  $("bg-rot").value = on&&b.rot!=null ? b.rot : 0;
+  $("bg-adjust").classList.toggle("on", on);
+}
+$("bg-file").addEventListener("change", e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ bgImages[currentView]={data:r.result,opacity:+$("bg-op").value,scale:100,rot:0,ox:0,oy:0,name:f.name}; refreshBgToolbar(); render(); toast("배경 추가됨 · 확대·회전·이동으로 맞추세요"); };
+  r.readAsDataURL(f);
+  e.target.value="";
+});
+$("bg-op").addEventListener("input", ()=>{
+  const b=bgImages[currentView]; if(b){ b.opacity=+$("bg-op").value; render(); }
+});
+$("bg-scale").addEventListener("input", ()=>{
+  const b=bgImages[currentView]; if(b){ b.scale=+$("bg-scale").value; render(); }
+});
+$("bg-rot").addEventListener("input", ()=>{
+  const b=bgImages[currentView]; if(b){ b.rot=+$("bg-rot").value; render(); }
+});
+document.querySelectorAll(".nb").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const b=bgImages[currentView]; if(!b) return;
+    const step=18, k=btn.dataset.nudge;
+    if(k==="lx") b.ox=(b.ox||0)-step;
+    else if(k==="rx") b.ox=(b.ox||0)+step;
+    else if(k==="uy") b.oy=(b.oy||0)-step;
+    else if(k==="dy") b.oy=(b.oy||0)+step;
+    else if(k==="reset"){ b.ox=0; b.oy=0; b.scale=100; b.rot=0; $("bg-scale").value=100; $("bg-rot").value=0; }
+    render();
+  });
+});
+$("bg-clear").addEventListener("click", ()=>{ bgImages[currentView]=null; refreshBgToolbar(); render(); });
+
+/* theme toggle */
+$("btn-theme").addEventListener("click", ()=>{
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur==="dark" ? "light" : cur==="light" ? "dark"
+    : (matchMedia("(prefers-color-scheme:dark)").matches?"light":"dark");
+  document.documentElement.setAttribute("data-theme", next);
+  render();
+});
+
+/* reset (두 번 클릭 — 샌드박스에서 confirm이 막히므로) */
+let _resetArm=null;
+$("btn-reset").addEventListener("click", ()=>{
+  const b=$("btn-reset");
+  if(_resetArm){ clearTimeout(_resetArm); _resetArm=null; localStorage.removeItem(LS_KEY); location.reload(); return; }
+  b.textContent="정말 초기화?"; b.classList.add("warn");
+  _resetArm=setTimeout(()=>{ b.textContent="초기화"; b.classList.remove("warn"); _resetArm=null; },3000);
+});
+
+/* save json */
+function buildJSON(){ const d=collect(); d._bg=bgImages; return JSON.stringify(d,null,2); }
+function fileBase(){ return (txt("f-name")||"bridge").replace(/[^\w가-힣一-龯-]+/g,"_"); }
+function loadObj(o){
+  apply(o);
+  if(o._bg){ ["section","elevation","plan"].forEach(k=> bgImages[k]= o._bg[k]||null); }
+  rebuildSpanInputs(); refreshBgToolbar(); render();
+}
+
+/* ---------- 보관함 (이 기기에 다중 저장) ---------- */
+const LS_SAVED="brg-saved-bridges";
+function getSaved(){ try{return JSON.parse(localStorage.getItem(LS_SAVED)||"{}");}catch(e){return {};} }
+function setSaved(o){ try{ localStorage.setItem(LS_SAVED, JSON.stringify(o)); return true; }catch(e){ return false; } }
+function refreshSavedList(){
+  const sel=$("saved-pick"), cur=sel.value, names=Object.keys(getSaved()).sort();
+  sel.innerHTML='<option value="">— 저장된 교량 불러오기 ('+names.length+') —</option>'
+    + names.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${escapeHtml(n)}</option>`).join("");
+  if(names.includes(cur)) sel.value=cur;
+}
+function saveBridge(){
+  const name=(txt("f-name")||"무제").trim();
+  const s=getSaved(); const d=collect(); d._bg=bgImages; s[name]=d;
+  return setSaved(s) ? name : null;
+}
+
+/* 저장: 보관함 + (실기기에선) 파일 다운로드 */
+$("btn-save").addEventListener("click", ()=>{
+  const name=saveBridge();
+  if(!name){ toast("보관함 저장 실패(용량 초과?) — 배경을 줄이거나 ‘📋 복사’ 사용"); return; }
+  refreshSavedList();
+  try{
+    const blob=new Blob([buildJSON()],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=`교량제원_${fileBase()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }catch(e){}
+  toast(`‘${name}’ 저장됨 — 보관함 + 파일 다운로드`);
+});
+/* 클립보드 복사 */
+$("btn-copy").addEventListener("click", async ()=>{
+  const json=buildJSON();
+  try{ await navigator.clipboard.writeText(json); toast("JSON을 클립보드에 복사했습니다"); }
+  catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=json; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); toast("JSON 복사됨 (클립보드)"); }
+    catch(_){ toast("복사 실패 — ‘💾 저장’(파일)을 사용하세요"); }
+    ta.remove();
+  }
+});
+/* 붙여넣기 (복사한 JSON 불러오기) */
+$("btn-paste").addEventListener("click", async ()=>{
+  let text=""; try{ text=await navigator.clipboard.readText(); }catch(e){}
+  if(!text){ toast("클립보드가 비었습니다 — 다른 기기에서 ‘📋 복사’ 먼저 하세요"); return; }
+  try{ loadObj(JSON.parse(text)); toast("붙여넣기 완료 · "+(JSON.parse(text)["f-name"]||"교량")); }
+  catch(err){ toast("붙여넣기 실패: 올바른 JSON이 아닙니다"); }
+});
+/* 보관함 선택 → 불러오기 */
+$("saved-pick").addEventListener("change", e=>{
+  const name=e.target.value; if(!name) return;
+  const o=getSaved()[name]; if(!o){ toast("저장본을 찾을 수 없습니다"); return; }
+  loadObj(o); toast("‘"+name+"’ 불러왔습니다");
+});
+/* 보관함 삭제 (두 번 클릭) */
+let _delArm=null;
+$("saved-del").addEventListener("click", ()=>{
+  const name=$("saved-pick").value;
+  if(!name){ toast("삭제할 교량을 먼저 선택하세요"); return; }
+  if(_delArm!==name){ _delArm=name; toast("한 번 더 누르면 ‘"+name+"’ 삭제"); setTimeout(()=>_delArm=null,3000); return; }
+  const s=getSaved(); delete s[name]; setSaved(s); refreshSavedList(); _delArm=null;
+  toast("‘"+name+"’ 삭제됨");
+});
+/* 파일 불러오기 */
+$("btn-load").addEventListener("click", ()=> $("file-load").click());
+$("file-load").addEventListener("change", e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ loadObj(JSON.parse(r.result)); toast("불러오기 완료 · "+f.name); }
+    catch(err){ toast("불러오기 실패: 올바른 JSON이 아닙니다"); } };
+  r.readAsText(f);
+});
+
+/* print */
+$("btn-print").addEventListener("click", ()=> window.print());
+
+/* init */
+load();
+refreshSavedList();
+rebuildSpanInputs();
+render();
+
+/* service worker (오프라인 지원 — 허브의 다른 페이지와 동일) */
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+
+</body>
+</html>
