@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f3a5f">
+<title>정기점검 재촬영 · BRG</title>
+<style>
+:root{
+  --navy:#1f3a5f; --steel:#2b6cb0; --steel-soft:#e8f0f9; --amber:#c98a12;
+  --ink:#243244; --muted:#6b7a8d; --line:#dde3ea; --paper:#fff; --bg:#f4f6f9;
+  --good:#2e7d55; --warn:#b45309; --dim:#c0392b;
+  --sans:'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;
+  --mono:ui-monospace,'Consolas',monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ink:#e7ecf3; --muted:#9aa6b5; --line:#2c3644; --paper:#1a212b; --bg:#11161d; --steel-soft:#1e2b3c;
+}}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:100vh}
+a{color:inherit}
+.topbar{background:var(--navy);color:#eaf1f8;padding:11px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:20}
+.topbar .home{font-size:1.1rem;text-decoration:none;opacity:.85}
+.topbar b{font-weight:800;letter-spacing:.02em;font-size:1rem}
+.topbar .sp{flex:1}
+.tbtn{background:rgba(255,255,255,.1);color:#dce7f2;border:1px solid rgba(255,255,255,.16);
+  padding:7px 11px;border-radius:9px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit}
+.tbtn:hover{background:rgba(255,255,255,.2)}
+.tbtn.primary{background:var(--steel);border-color:var(--steel)}
+.bar2{background:var(--paper);border-bottom:1px solid var(--line);padding:9px 14px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;position:sticky;top:47px;z-index:15}
+.bar2 .title{font-weight:800;font-size:.95rem}
+.bar2 .sub{font-size:.76rem;color:var(--muted)}
+.prog{margin-left:auto;font-size:.8rem;font-weight:700;color:var(--steel)}
+.prog .track{display:inline-block;width:120px;height:8px;background:var(--line);border-radius:6px;overflow:hidden;vertical-align:middle;margin-left:8px}
+.prog .fill{height:100%;background:var(--steel);width:0}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 12px 60px}
+.empty{text-align:center;color:var(--muted);padding:60px 20px;line-height:1.7}
+.empty b{color:var(--ink)}
+.grp-h{font-weight:800;font-size:.92rem;color:var(--navy);margin:18px 4px 10px;padding-bottom:6px;border-bottom:2px solid var(--steel-soft)}
+@media (prefers-color-scheme:dark){.grp-h{color:var(--steel)}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:9px}
+.card.done{border-color:var(--good)}
+.card .hd{display:flex;align-items:flex-start;gap:8px}
+.card .num{font-family:var(--mono);font-size:.72rem;font-weight:800;color:var(--steel);background:var(--steel-soft);padding:2px 7px;border-radius:6px;flex:0 0 auto}
+.card .lab-in{width:100%;font-family:inherit;font-size:.86rem;font-weight:700;line-height:1.35;color:var(--ink);
+  background:transparent;border:none;border-bottom:1px dashed transparent;outline:none;padding:1px 0}
+.card .lab-in:focus{border-bottom-color:var(--steel)}
+.card .prev{font-size:.72rem;color:var(--muted);margin-top:3px}
+.card .del{flex:0 0 auto;background:none;border:none;cursor:pointer;font-size:.9rem;opacity:.5;padding:2px 4px}
+.card .del:hover{opacity:1}
+.card.added{border-left:3px solid var(--dim)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ph{position:relative;aspect-ratio:4/3;border-radius:9px;overflow:hidden;background:var(--bg);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .tag{position:absolute;top:5px;left:5px;font-size:.64rem;font-weight:800;padding:2px 6px;border-radius:5px;background:rgba(31,58,95,.82);color:#fff}
+.ph.new{cursor:pointer;border-style:dashed}
+.ph.new .add{color:var(--muted);font-size:.8rem;text-align:center;font-weight:700;padding:6px}
+.ph.new .add .big{font-size:1.7rem;display:block;margin-bottom:2px}
+.ph .redo{position:absolute;right:5px;bottom:5px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:7px;font-size:.68rem;padding:4px 7px;cursor:pointer}
+.row{display:flex;gap:8px;align-items:center}
+.row select,.row input[type=text]{flex:1;font-family:inherit;font-size:.82rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;outline:none}
+.row select:focus,.row input:focus{border-color:var(--steel)}
+.judge{font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:20px;border:1px solid}
+.j-none{color:var(--good);border-color:var(--good)}
+.j-prog{color:var(--warn);border-color:var(--warn)}
+.j-new{color:var(--dim);border-color:var(--dim)}
+.j-skip,.j-wait{color:var(--muted);border-color:var(--line)}
+
+/* camera modal */
+.cam{position:fixed;inset:0;background:#000;z-index:60;display:none;flex-direction:column}
+.cam.on{display:flex}
+.cam .stage{position:relative;flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.cam video{max-width:100%;max-height:100%;display:block}
+.cam .ghost{position:absolute;inset:0;pointer-events:none;background-size:contain;background-position:center;background-repeat:no-repeat;opacity:.45}
+.cam .ghost-frame{position:absolute;inset:0;pointer-events:none;border:2px dashed rgba(255,255,255,.35)}
+.cam .ctrls{background:#0b0f14;color:#eaf1f8;padding:12px 14px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}
+.cam .ctrls .top{display:flex;align-items:center;gap:12px;font-size:.8rem}
+.cam .op{display:flex;align-items:center;gap:8px;flex:1}
+.cam .op input{flex:1;accent-color:var(--steel)}
+.cam .btns{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.cam .shoot{width:66px;height:66px;border-radius:50%;background:#fff;border:5px solid #cbd5e1;cursor:pointer}
+.cam .shoot:active{transform:scale(.94)}
+.cam .cbtn{background:rgba(255,255,255,.12);color:#eaf1f8;border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:11px 15px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit}
+.cam .lab{font-size:.82rem;color:#b9cbe0;text-align:center}
+.cam .fallback{color:#f6c560;font-size:.76rem;text-align:center}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);background:var(--navy);color:#fff;
+  padding:11px 18px;border-radius:10px;font-size:.85rem;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.3);
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="home" href="index.html" title="허브">🏠</a>
+    <b>정기점검 재촬영</b>
+    <span class="sp"></span>
+    <label class="tbtn">📂 전차세트<input type="file" id="load-set" accept="application/json" hidden></label>
+    <button class="tbtn" id="btn-add">➕ 손상</button>
+    <button class="tbtn" id="btn-save">💾 저장</button>
+    <button class="tbtn primary" id="btn-export">📤 내보내기</button>
+  </div>
+  <div class="bar2">
+    <div>
+      <div class="title" id="mn">전차세트를 불러오세요</div>
+      <div class="sub" id="ms">전차 보고서에서 추출한 세트(JSON)를 열면 재촬영이 시작됩니다</div>
+    </div>
+    <div class="prog" id="prog" hidden>촬영 <span id="pn">0/0</span><span class="track"><span class="fill" id="pf"></span></span></div>
+  </div>
+
+  <div class="wrap">
+    <div class="empty" id="empty">
+      <div style="font-size:2.4rem;margin-bottom:10px">📸</div>
+      <b>전차세트(JSON)를 불러오세요</b><br>
+      상단 <b>📂 전차세트</b> → 전차 보고서에서 만든 세트 파일 선택<br>
+      <span style="font-size:.82rem">각 사진 자리에 기준사진이 뜨고, 같은 구도로 재촬영하면 됩니다.</span>
+      <div style="margin-top:16px">— 또는 —<br>
+        <button class="tbtn primary" id="btn-fresh" style="margin-top:10px;background:var(--steel)">➕ 빈 세트로 시작 (전차 없음)</button>
+      </div>
+    </div>
+    <div id="groups"></div>
+  </div>
+
+  <!-- 고스트 정렬 카메라 -->
+  <div class="cam" id="cam">
+    <div class="stage">
+      <video id="vid" playsinline autoplay muted></video>
+      <div class="ghost" id="ghost"></div>
+      <div class="ghost-frame"></div>
+    </div>
+    <div class="ctrls">
+      <div class="lab" id="cam-lab"></div>
+      <div class="fallback" id="cam-fb" hidden>카메라를 열 수 없어 파일 촬영으로 전환합니다…</div>
+      <div class="top">
+        <span class="op">👻 기준 겹침 <input type="range" id="ghost-op" min="0" max="90" value="45"></span>
+        <button class="cbtn" id="cam-flip">🔄 전/후면</button>
+      </div>
+      <div class="btns">
+        <button class="cbtn" id="cam-close">닫기</button>
+        <button class="shoot" id="cam-shoot" title="촬영"></button>
+        <button class="cbtn" id="cam-file">🖼 파일</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="file-cap" accept="image/*" capture="environment" hidden>
+
+<script>
+const $=id=>document.getElementById(id);
+const LS="brg-reinspect", LS_SET="brg-reinspect-set";
+let DATA=null;            // {교량,기준회차,slots:[{...,금회,판정,메모}]}
+let capIdx=-1;           // slot being captured
+let stream=null, facing='environment';
+
+/* ---------- toast ---------- */
+let _t,_tt; function toast(m){ if(!_t){_t=document.createElement('div');_t.className='toast';document.body.appendChild(_t);} _t.textContent=m;_t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>_t.classList.remove('show'),2200);}
+
+/* ---------- persistence ---------- */
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(DATA)); }catch(e){} }
+function load(){ try{ const o=JSON.parse(localStorage.getItem(LS)||'null'); if(o&&o.slots){ DATA=o; render(); } }catch(e){} }
+
+/* ---------- load 전차세트 ---------- */
+$('load-set').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+    const o=JSON.parse(r.result);
+    if(!o.slots) throw 0;
+    o.slots.forEach(s=>{ if(s.금회===undefined) s.금회=null; if(s.판정===undefined) s.판정=''; if(s.메모===undefined) s.메모=''; });
+    DATA=o; save(); render(); toast('전차세트 불러옴 · '+(o.교량||'')+' ('+o.slots.length+'컷)');
+  }catch(err){ toast('불러오기 실패: 올바른 전차세트가 아닙니다'); } };
+  r.readAsText(f); e.target.value='';
+});
+
+/* ---------- render ---------- */
+const JUDGE=[['','미판정','j-wait'],['진전없음','진전없음','j-none'],['진전','진전','j-prog'],['신규','신규손상','j-new'],['사진없음','사진없음','j-skip']];
+function judgeClass(v){ const x=JUDGE.find(j=>j[0]===v); return x?x[2]:'j-wait'; }
+function render(){
+  if(!DATA){ $('empty').hidden=false; $('groups').innerHTML=''; $('prog').hidden=true; return; }
+  $('empty').hidden=true;
+  $('mn').textContent=DATA.교량||'교량';
+  $('ms').textContent='기준회차: '+(DATA.기준회차||'-')+' · 같은 구도로 재촬영';
+  const groups={};
+  DATA.slots.forEach((s,i)=>{ (groups[s.grp||'사진']=groups[s.grp||'사진']||[]).push(i); });
+  const box=$('groups'); box.innerHTML='';
+  for(const g in groups){
+    const h=document.createElement('div'); h.className='grp-h'; h.textContent=g; box.appendChild(h);
+    const grid=document.createElement('div'); grid.className='grid';
+    groups[g].forEach(i=> grid.appendChild(card(i)));
+    box.appendChild(grid);
+  }
+  const done=DATA.slots.filter(s=>s.금회).length, tot=DATA.slots.length;
+  $('prog').hidden=false; $('pn').textContent=done+'/'+tot; $('pf').style.width=(tot?done/tot*100:0)+'%';
+  save();
+}
+function card(i){
+  const s=DATA.slots[i];
+  const c=document.createElement('div'); c.className='card'+(s.금회?' done':'')+(s.added?' added':'');
+  const num=s.num?`<span class="num">${s.num}</span>`:(s.added?`<span class="num" style="color:var(--dim);background:none;border:1px solid var(--dim)">신규</span>`:'');
+  c.innerHTML=`
+    <div class="hd">${num}
+      <div style="flex:1;min-width:0">
+        <input class="lab-in" data-label="${i}" value="${esc(s.label||'')}" placeholder="손상 내용 입력">
+        ${s.prev비고?`<div class="prev">전차 비고: ${esc(s.prev비고)}</div>`:''}
+      </div>
+      <button class="del" data-del="${i}" title="삭제">🗑</button>
+    </div>
+    <div class="pair">
+      <div class="ph"><span class="tag">기준</span>${s.ref?`<img src="${s.ref}">`:'<span class="add">기준없음</span>'}</div>
+      <div class="ph new" data-cap="${i}">
+        <span class="tag" style="background:rgba(43,108,176,.85)">금회</span>
+        ${s.금회?`<img src="${s.금회}"><button class="redo" data-redo="${i}">다시</button>`:'<span class="add"><span class="big">📷</span>재촬영</span>'}
+      </div>
+    </div>
+    <div class="row">
+      <select data-judge="${i}">
+        ${JUDGE.map(j=>`<option value="${j[0]}" ${s.판정===j[0]?'selected':''}>${j[1]}</option>`).join('')}
+      </select>
+      <span class="judge ${judgeClass(s.판정)}">${(JUDGE.find(j=>j[0]===s.판정)||JUDGE[0])[1]}</span>
+    </div>
+    <div class="row"><input type="text" data-memo="${i}" placeholder="메모 (선택)" value="${esc(s.메모||'')}"></div>`;
+  c.querySelector('.ph.new').addEventListener('click',ev=>{ if(ev.target.dataset.redo!==undefined) return; openCam(i); });
+  const rb=c.querySelector('[data-redo]'); if(rb) rb.addEventListener('click',ev=>{ev.stopPropagation();openCam(i);});
+  c.querySelector('[data-judge]').addEventListener('change',ev=>{ s.판정=ev.target.value; save(); render(); });
+  c.querySelector('[data-memo]').addEventListener('input',ev=>{ s.메모=ev.target.value; save(); });
+  c.querySelector('[data-label]').addEventListener('input',ev=>{ s.label=ev.target.value; save(); });
+  c.querySelector('[data-del]').addEventListener('click',ev=>{ delSlot(i); });
+  return c;
+}
+let _delArm=-1;
+function delSlot(i){
+  if(_delArm!==i){ _delArm=i; toast('한 번 더 🗑 누르면 삭제'); setTimeout(()=>_delArm=-1,2500); return; }
+  DATA.slots.splice(i,1); _delArm=-1; render(); toast('항목 삭제됨');
+}
+/* 신규 손상 추가 */
+function addSlot(open){
+  if(!DATA){ DATA={교량:'(교량명)',기준회차:'-',slots:[]}; }
+  DATA.slots.push({grp:'외관조사',label:'',prev비고:'',ref:null,금회:null,판정:'신규',메모:'',added:true});
+  const i=DATA.slots.length-1; render();
+  const inp=document.querySelector(`[data-label="${i}"]`); if(inp){ inp.scrollIntoView({block:'center'}); inp.focus(); }
+  if(open) openCam(i);
+}
+$('btn-add').addEventListener('click',()=>addSlot(false));
+$('btn-fresh').addEventListener('click',()=>{ DATA={교량:'(교량명)',기준회차:'현장 신규',slots:[]}; render(); addSlot(false); toast('빈 세트 시작 — 손상을 추가하세요'); });
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------- 카메라 (고스트 정렬) ---------- */
+async function openCam(i){
+  capIdx=i; const s=DATA.slots[i];
+  $('cam-lab').textContent=(s.num?s.num+' · ':'')+(s.label||'');
+  $('ghost').style.backgroundImage=s.ref?`url(${s.ref})`:'none';
+  $('ghost').style.opacity=($('ghost-op').value)/100;
+  $('cam-fb').hidden=true;
+  $('cam').classList.add('on');
+  try{ await start(); }
+  catch(e){ $('cam-fb').hidden=false; setTimeout(()=>{ closeCam(); fileCap(i); }, 900); }
+}
+async function start(){
+  stop();
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});
+  const v=$('vid'); v.srcObject=stream; await v.play().catch(()=>{});
+}
+function stop(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+function closeCam(){ stop(); $('cam').classList.remove('on'); }
+$('ghost-op').addEventListener('input',()=>{ $('ghost').style.opacity=$('ghost-op').value/100; });
+$('cam-close').addEventListener('click',closeCam);
+$('cam-flip').addEventListener('click',async()=>{ facing=facing==='environment'?'user':'environment'; try{await start();}catch(e){} });
+$('cam-file').addEventListener('click',()=>{ const i=capIdx; closeCam(); fileCap(i); });
+$('cam-shoot').addEventListener('click',()=>{
+  const v=$('vid'); if(!v.videoWidth){ toast('카메라 준비 중…'); return; }
+  const cv=document.createElement('canvas'); cv.width=v.videoWidth; cv.height=v.videoHeight;
+  cv.getContext('2d').drawImage(v,0,0);
+  DATA.slots[capIdx].금회=cv.toDataURL('image/jpeg',0.82);
+  closeCam(); render(); toast('촬영 완료 ('+DATA.slots.filter(s=>s.금회).length+'/'+DATA.slots.length+')');
+});
+
+/* ---------- 파일 촬영 폴백 ---------- */
+function fileCap(i){ capIdx=i; $('file-cap').click(); }
+$('file-cap').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f||capIdx<0) return;
+  const r=new FileReader();
+  r.onload=()=>{ DATA.slots[capIdx].금회=r.result; render(); toast('사진 추가됨'); };
+  r.readAsDataURL(f); e.target.value='';
+});
+
+/* ---------- 저장 / 내보내기 ---------- */
+$('btn-save').addEventListener('click',()=>{ if(!DATA){toast('먼저 전차세트를 불러오세요');return;} save();
+  try{ localStorage.setItem(LS_SET+'::'+(DATA.교량||'무제'), JSON.stringify(DATA)); }catch(e){}
+  toast('저장됨 (이 기기)'); });
+$('btn-export').addEventListener('click',()=>{
+  if(!DATA){toast('먼저 전차세트를 불러오세요');return;}
+  const name=(DATA.교량||'재촬영').replace(/[^\w가-힣-]+/g,'_');
+  try{
+    const blob=new Blob([JSON.stringify(DATA)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`재촬영_${name}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    toast('내보냄 · 사무실에서 이 파일 주시면 워드 초안 생성');
+  }catch(e){ toast('내보내기 실패'); }
+});
+
+/* init */
+load();
+if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
