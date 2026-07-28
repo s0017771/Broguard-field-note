@@ -132,7 +132,7 @@ details.grp>summary .num{width:20px;height:20px;border-radius:6px;background:var
 
 /* svg text helpers via classes injected */
 text{font-family:var(--sans)}
-.svg-dim{fill:var(--dim);font-family:var(--mono);font-weight:700}
+.svg-dim{fill:var(--draw);font-family:var(--mono);font-weight:700}
 .svg-label{fill:var(--draw);font-weight:700}
 .svg-note{fill:var(--draw-2)}
 
@@ -565,16 +565,17 @@ function line(x1,y1,x2,y2,opt){
   return el("line",{x1,y1,x2,y2,stroke:(opt&&opt.color)||"var(--draw)",
     "stroke-width":(opt&&opt.w)||1.2,"stroke-dasharray":(opt&&opt.dash)||"none"});
 }
+const TS=1.3;   // 태블릿 가독성: 도면 글씨 30% 확대
 function label(x,y,s,cls,anchor,size){
   const t = el("text",{x,y,"text-anchor":anchor||"middle",
-    "font-size":size||12, class:cls||"svg-label"});
+    "font-size":(size||12)*TS, class:cls||"svg-label"});
   t.textContent = s;
   return t;
 }
 /* horizontal dimension line with tick marks + value */
 function hDim(g,x1,x2,y,val,opt){
   opt = opt||{};
-  const col = "var(--dim)";
+  const col = "var(--draw)";
   const ext = opt.ext||0;   // extension guide length from object
   if(ext){
     g.appendChild(line(x1,y-ext*opt.dir,x1,y+2*opt.dir,{color:col,w:.7}));
@@ -584,24 +585,22 @@ function hDim(g,x1,x2,y,val,opt){
   // ticks (45deg)
   [x1,x2].forEach(x=> g.appendChild(line(x-3,y+3,x+3,y-3,{color:col,w:1.1})));
   const mid=(x1+x2)/2;
-  const tv = label(mid, y-4, fmt(val), "svg-dim", "middle", opt.size||11.5);
-  // background chip for readability
-  const w = (fmt(val).length)*6.6+8;
-  g.appendChild(el("rect",{x:mid-w/2,y:y-15,width:w,height:13,rx:3,fill:"var(--paper)","fill-opacity":.85}));
-  g.appendChild(tv);
+  // background chip for readability (30% 확대에 맞춰 키움)
+  const w = (fmt(val).length)*8.6+10;
+  g.appendChild(el("rect",{x:mid-w/2,y:y-19,width:w,height:16,rx:3,fill:"var(--paper)","fill-opacity":.9}));
+  g.appendChild(label(mid, y-5, fmt(val), "svg-dim", "middle", opt.size||11.5));
 }
 /* vertical dimension line */
 function vDim(g,x,y1,y2,val,opt){
   opt=opt||{};
-  const col="var(--dim)";
+  const col="var(--draw)";
   g.appendChild(line(x,y1,x,y2,{color:col,w:1}));
   [y1,y2].forEach(y=> g.appendChild(line(x-3,y+3,x+3,y-3,{color:col,w:1.1})));
   const mid=(y1+y2)/2;
   const s=fmt(val);
-  const w=s.length*6.6+8;
-  g.appendChild(el("rect",{x:x-w/2,y:mid-7,width:w,height:13,rx:3,fill:"var(--paper)","fill-opacity":.85}));
-  const t=label(x,mid+3.5,s,"svg-dim","middle",opt.size||11.5);
-  g.appendChild(t);
+  const w=s.length*8.6+10;
+  g.appendChild(el("rect",{x:x-w/2,y:mid-9,width:w,height:16,rx:3,fill:"var(--paper)","fill-opacity":.9}));
+  g.appendChild(label(x,mid+4,s,"svg-dim","middle",opt.size||11.5));
 }
 
 /* ============================================================
