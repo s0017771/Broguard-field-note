@@ -1,4 +1,4 @@
-const CACHE_NAME = 'field-note-v19';
+const CACHE_NAME = 'field-note-v20';
 // 단일 HTML 구조 — pdf.js/JSZip/로고는 각 HTML에 인라인되어 별도 캐시 불필요
 // 허브(index)·현장조사노트(field-note)·계측(monitoring)·교량제원(bridge-survey)·정기점검재촬영(reinspect)
 const ASSETS = [
