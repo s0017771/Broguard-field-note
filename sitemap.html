@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>점검 위치도 · BRG 엔지니어링</title>
+<meta name="theme-color" content="#1f3a5f">
+<style>
+  :root{
+    --line:#d5dbe2; --text:#1c2430; --muted:#6b7785; --accent:#2563eb;
+    --panel:#ffffff; --panel2:#f4f6f9; --good:#0f9d58;
+    --sans:-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif; --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:var(--sans);color:var(--text)}
+  #map{position:absolute;inset:0;background:#ccc}
+
+  #titleBar{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:8;
+    background:#ffffffe8;border:1px solid var(--line);border-radius:10px;padding:8px 16px;
+    font-size:17px;font-weight:700;box-shadow:0 2px 8px #0002;outline:none;min-width:220px;text-align:center}
+
+  /* legend: two columns, compact, fits one page */
+  #legend{position:absolute;top:0;left:0;bottom:0;width:440px;z-index:9;background:var(--panel);
+    border-right:1px solid var(--line);display:flex;flex-direction:column;box-shadow:2px 0 10px #0001}
+  .lg-head{padding:12px 14px;border-bottom:1px solid var(--line)}
+  .lg-head h1{font-size:16px;margin:0 0 2px}
+  .lg-head .sub{font-size:12px;color:var(--muted)}
+  #leglist{flex:1;overflow:auto;display:grid;grid-auto-flow:column;gap:0 12px;padding:8px 12px;align-content:start}
+  .li{display:flex;gap:7px;align-items:center;padding:4px 4px;cursor:pointer;font-size:14px;line-height:1.25;border-radius:4px}
+  .li:hover{background:var(--panel2)}
+  .li.hot{background:#fff3cd}
+  .li .dot{flex:0 0 19px;height:19px;border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .li .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  #ctrl{position:absolute;top:12px;right:12px;z-index:9;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .row{display:flex;gap:6px}
+  .btn{font-size:13px;font-weight:600;padding:9px 13px;border-radius:9px;border:1px solid var(--line);
+    background:#fffffff2;color:var(--text);cursor:pointer;box-shadow:0 1px 4px #0001;white-space:nowrap}
+  .btn:hover{background:var(--panel2)}
+  .btn.on{background:var(--accent);color:#fff;border-color:transparent}
+  .btn.pri{background:var(--good);color:#fff;border-color:transparent}
+
+  .sheet{position:absolute;inset:0;z-index:20;background:#0009;display:none;align-items:center;justify-content:center;padding:20px}
+  .sheet.show{display:flex}
+  .sheet .card{background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:86vh;overflow:auto;padding:22px}
+  .sheet h2{margin:0 0 8px;font-size:18px}
+  .sheet p{font-size:13px;color:var(--muted);line-height:1.6;margin:6px 0}
+  .sheet textarea{width:100%;height:180px;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical}
+  .sheet .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+  .sheet code{font-family:var(--mono);background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
+
+  #toast{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:25;
+    background:#1c2430f2;color:#fff;padding:10px 18px;border-radius:9px;font-size:14px;display:none;max-width:80%;text-align:center}
+  #toast.show{display:block}
+
+  body.clean #legend,body.clean #ctrl,body.clean #titleBar,body.clean #toast{display:none}
+  body.clean #capexit{display:block}
+  #capexit{position:absolute;bottom:14px;right:14px;z-index:30;display:none;font-size:12px;padding:7px 11px;opacity:.85}
+
+  @media (max-width:680px){#legend{width:300px}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="titleBar" contenteditable="true">시설물 위치도</div>
+
+<div id="legend">
+  <div class="lg-head">
+    <h1>범례 (구조물 <span id="cnt">0</span>개)</h1>
+    <div class="sub">항목을 누르면 해당 위치로 이동합니다</div>
+  </div>
+  <div id="leglist"></div>
+</div>
+
+<div id="ctrl">
+  <div class="row">
+    <button class="btn" id="tNormal">일반</button>
+    <button class="btn on" id="tHybrid">위성+라벨</button>
+    <button class="btn" id="tSky">위성</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="fitBtn">전체보기</button>
+    <button class="btn on" id="numBtn">번호: 표시</button>
+    <button class="btn on" id="dragBtn">위치조정: 켬</button>
+    <button class="btn" id="leaderBtn">지시선: 끔</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="importBtn">가져오기</button>
+    <button class="btn" id="exportBtn">내보내기</button>
+    <button class="btn" id="cleanBtn">캡처모드</button>
+  </div>
+</div>
+<button class="btn" id="capexit">캡처모드 종료</button>
+
+<input type="file" id="fileInput" accept=".kml,.csv,.txt,.json,.xlsx,.xls" style="display:none">
+
+<div class="sheet" id="importSheet">
+  <div class="card">
+    <h2>구조물 데이터 가져오기</h2>
+    <p><b>엑셀(.xlsx)</b> · KML · CSV · JSON을 <b>파일 선택</b>으로 바로 올리세요. 엑셀은 <code>시설물명 / 구분 / 위도 / 경도</code> 열을 자동 인식합니다.</p>
+    <p class="muted">붙여넣기는 KML·CSV·JSON만 됩니다(엑셀은 파일로). ※ 지도 이름은 <b>KML이 아니라 이 엑셀</b>이 정확합니다.</p>
+    <div class="actions" style="justify-content:flex-start">
+      <button class="btn pri" id="pickFile">파일 선택</button>
+      <button class="btn" id="resetDefault">기본(47개)로 초기화</button>
+      <span id="fileName" class="muted" style="align-self:center"></span>
+    </div>
+    <textarea id="importText" placeholder="또는 여기에 KML / CSV / JSON 붙여넣기" style="margin-top:10px"></textarea>
+    <div class="actions">
+      <button class="btn" id="importCancel">취소</button>
+      <button class="btn pri" id="importDo">붙여넣기 불러오기</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="exportSheet">
+  <div class="card">
+    <h2>조정한 좌표 내보내기</h2>
+    <p>드래그로 옮긴 최신 위치가 반영됩니다. CSV/KML 파일로 저장하거나 아래 텍스트를 복사하세요.</p>
+    <div class="actions" style="justify-content:flex-start">
+      <button class="btn pri" id="dlCsv">CSV 파일 저장</button>
+      <button class="btn pri" id="dlKml">KML 파일 저장</button>
+      <button class="btn" id="copyJson">JSON 복사</button>
+    </div>
+    <textarea id="exportText" readonly style="margin-top:12px"></textarea>
+    <div class="actions"><button class="btn" id="exportClose">닫기</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ===== CONFIG ===== */
+var KAKAO_JS_KEY = "ce35f31f5c6402bd5a16dbbf84adebac";
+var STORAGE_KEY  = "broguard_sites_v2";
+var SAMPLE = [
+  {no:1, name:"신원교", type:"교량", lat:37.677927, lng:126.882824},
+  {no:2, name:"신원지하차도", type:"지하차도", lat:37.664997, lng:126.891186},
+  {no:3, name:"혜음령터널(고양방향)", type:"터널", lat:37.722519, lng:126.895804},
+  {no:4, name:"혜음령터널(광탄방향)", type:"터널", lat:37.727322, lng:126.891175},
+  {no:5, name:"대자교", type:"교량", lat:37.690514, lng:126.876044},
+  {no:6, name:"제1대자교", type:"교량", lat:37.68117, lng:126.887747},
+  {no:7, name:"제2대자교", type:"교량", lat:37.688246, lng:126.87341},
+  {no:8, name:"관산교", type:"교량", lat:37.71053, lng:126.860216},
+  {no:9, name:"내유1교", type:"교량", lat:37.72102, lng:126.85296},
+  {no:10, name:"내유2교", type:"교량", lat:37.724392, lng:126.843929},
+  {no:11, name:"선유교", type:"교량", lat:37.679272, lng:126.904368},
+  {no:12, name:"계명1교", type:"교량", lat:37.732892, lng:126.911552},
+  {no:13, name:"계명2교", type:"교량", lat:37.736948, lng:126.912543},
+  {no:14, name:"앵무교", type:"교량", lat:37.719974, lng:126.903872},
+  {no:15, name:"고양1교", type:"교량", lat:37.700825, lng:126.902886},
+  {no:16, name:"고양2교", type:"교량", lat:37.706613, lng:126.903776},
+  {no:17, name:"신원당교", type:"교량", lat:37.6535, lng:126.833},
+  {no:18, name:"내유보도육교", type:"육교", lat:37.715348, lng:126.850922},
+  {no:19, name:"벽제보도육교", type:"육교", lat:37.680809, lng:126.893099},
+  {no:20, name:"고양근린공원육교", type:"육교", lat:37.706269, lng:126.899762},
+  {no:21, name:"내유7교", type:"교량", lat:37.721823, lng:126.861903},
+  {no:22, name:"목암2교", type:"교량", lat:37.708161, lng:126.904312},
+  {no:23, name:"목암4교", type:"교량", lat:37.711517, lng:126.906868},
+  {no:24, name:"왕릉골2교", type:"교량", lat:37.655, lng:126.8342},
+  {no:25, name:"오금천1교", type:"교량", lat:37.661359, lng:126.908673},
+  {no:26, name:"오금천2교", type:"교량", lat:37.666079, lng:126.91352},
+  {no:27, name:"오금천3교", type:"교량", lat:37.665179, lng:126.91404},
+  {no:28, name:"오금천4교", type:"교량", lat:37.666637, lng:126.910903},
+  {no:29, name:"오금천5교", type:"교량", lat:37.665758, lng:126.912212},
+  {no:30, name:"오금천6교", type:"교량", lat:37.665179, lng:126.913},
+  {no:31, name:"오금천7교", type:"교량", lat:37.665437, lng:126.910903},
+  {no:32, name:"오금천8교", type:"교량", lat:37.665509, lng:126.920211},
+  {no:33, name:"오금천9교", type:"교량", lat:37.664476, lng:126.894599},
+  {no:34, name:"오금천10교", type:"교량", lat:37.665344, lng:126.89349},
+  {no:35, name:"오금천11교", type:"교량", lat:37.669882, lng:126.891746},
+  {no:36, name:"한우물천2교", type:"교량", lat:37.660575, lng:126.884963},
+  {no:37, name:"한우물천3교", type:"교량", lat:37.665696, lng:126.884522},
+  {no:38, name:"한우물천5교", type:"교량", lat:37.668256, lng:126.884311},
+  {no:39, name:"고양3교", type:"교량", lat:37.710197, lng:126.901592},
+  {no:40, name:"고양4교", type:"교량", lat:37.70905, lng:126.902383},
+  {no:41, name:"목암5교", type:"교량", lat:37.714194, lng:126.908058},
+  {no:42, name:"앵무1교", type:"교량", lat:37.718774, lng:126.903872},
+  {no:43, name:"원당1교", type:"교량", lat:37.6565, lng:126.8354},
+  {no:44, name:"벽제교", type:"교량", lat:37.717524, lng:126.9008},
+  {no:45, name:"용복교", type:"교량", lat:37.690789, lng:126.897878},
+  {no:46, name:"꽃마을교", type:"교량", lat:37.658, lng:126.8366},
+  {no:47, name:"상곡4교", type:"교량", lat:37.723621, lng:126.907605}
+];
+/* ================= */
+
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var map, sites=[], markers=[], lines=[], dots=[], dragOn=true, leaderOn=false, showNums=true, hotIdx=-1;
+  var BLUE="#2563eb", HILITE="#ffd400";
+  function colorOf(t){ return BLUE; } // 단일 파랑
+  function toast(m,ms){var t=$("toast");t.textContent=m;t.classList.add("show");
+    clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove("show")},ms||2600);}
+  function esc(t){return String(t).replace(/[<>&]/g,function(c){return{"<":"&lt;",">":"&gt;","&":"&amp;"}[c]});}
+
+  function load(){
+    var s=document.createElement("script");
+    s.src="https://dapi.kakao.com/v2/maps/sdk.js?appkey="+KAKAO_JS_KEY+"&autoload=false";
+    s.onload=function(){ kakao.maps.load(init); };
+    s.onerror=function(){ toast("지도 로드 실패 — JS 키/도메인 확인",6000); };
+    document.head.appendChild(s);
+  }
+
+  function init(){
+    map=new kakao.maps.Map($("map"),{center:new kakao.maps.LatLng(37.702,126.762),level:6});
+    setType("hybrid");
+    map.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
+    var saved=null; try{ var raw=localStorage.getItem(STORAGE_KEY); if(raw) saved=JSON.parse(raw); }catch(e){}
+    if(saved && saved.length){ sites=saved; toast("저장된 조정 내용을 불러왔습니다 ("+sites.length+"개)",3500); }
+    else sites=SAMPLE.slice();
+    render(); fitAll(); bindUI();
+  }
+
+  function pin(n,color,big){
+    var w=big?46:34,h=big?56:42,r=big?18:13,fs=big?17:13,cy=big?20:15,ty=big?26:19.5;
+    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'
+      +'<path d="M'+(w/2)+' '+(h-1)+' C'+(w/2)+' '+(h-1)+' '+(w*0.12)+' '+(h*0.6)+' '+(w*0.12)+' '+cy+' A'+r+' '+r+' 0 1 1 '+(w*0.88)+' '+cy+' C'+(w*0.88)+' '+(h*0.6)+' '+(w/2)+' '+(h-1)+' '+(w/2)+' '+(h-1)+' Z" fill="'+color+'" stroke="#fff" stroke-width="2.5"/>'
+      +'<text x="'+(w/2)+'" y="'+ty+'" text-anchor="middle" font-family="Arial,sans-serif" font-size="'+fs+'" font-weight="700" fill="#fff">'+n+'</text></svg>';
+    return {url:"data:image/svg+xml;base64,"+btoa(unescape(encodeURIComponent(svg))),w:w,h:h};
+  }
+  function markerImage(n,color,big){var p=pin(n,color,big);
+    return new kakao.maps.MarkerImage(p.url,new kakao.maps.Size(p.w,p.h),{offset:new kakao.maps.Point(p.w/2,p.h)});}
+  function dotImage(){
+    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"><circle cx="7" cy="7" r="5" fill="'+BLUE+'" stroke="#fff" stroke-width="2"/></svg>';
+    return new kakao.maps.MarkerImage("data:image/svg+xml;base64,"+btoa(svg), new kakao.maps.Size(14,14), {offset:new kakao.maps.Point(7,7)});
+  }
+
+  function labelPos(s){ return (s.llat!=null&&s.llng!=null)?{lat:s.llat,lng:s.llng}:{lat:s.lat,lng:s.lng}; }
+  function hasLeader(s){ return s.llat!=null && (s.llat!==s.lat || s.llng!==s.lng); }
+
+  function removeLine(l){ if(!l) return; l.setMap(null); if(l._over) l._over.setMap(null); }
+  function clearAll(){
+    markers.forEach(function(m){m&&m.setMap(null)}); markers=[];
+    lines.forEach(function(l){ removeLine(l); }); lines=[];
+    dots.forEach(function(d){d&&d.setMap(null)}); dots=[];
+  }
+
+  function buildLeader(i){
+    var s=sites[i];
+    if(lines[i]){ removeLine(lines[i]); lines[i]=null; }
+    if(dots[i]){ dots[i].setMap(null); dots[i]=null; }
+    if(!hasLeader(s) || !showNums) return;
+    var lp=labelPos(s), coord=new kakao.maps.LatLng(s.lat,s.lng), lab=new kakao.maps.LatLng(lp.lat,lp.lng);
+    var under=new kakao.maps.Polyline({path:[lab,coord],strokeWeight:5,strokeColor:"#000",strokeOpacity:0.45});
+    var over =new kakao.maps.Polyline({path:[lab,coord],strokeWeight:2,strokeColor:"#fff",strokeOpacity:0.95});
+    under.setMap(map); over.setMap(map); under._over=over; lines[i]=under;
+    dots[i]=new kakao.maps.Marker({position:coord,image:dotImage(),map:map,zIndex:1});
+  }
+
+  function render(){
+    clearAll();
+    $("cnt").textContent=sites.length;
+    var lg=$("leglist"); lg.innerHTML="";
+    var rows=Math.max(1,Math.ceil(sites.length/2));
+    lg.style.gridTemplateRows="repeat("+rows+", auto)";
+    sites.forEach(function(s,i){
+      var lp=labelPos(s);
+      var mk=new kakao.maps.Marker({position:new kakao.maps.LatLng(lp.lat,lp.lng),
+        image:markerImage(s.no,BLUE,false),draggable:showNums&&(dragOn||leaderOn),map:showNums?map:null,zIndex:2});
+      kakao.maps.event.addListener(mk,"dragend",function(){ onDragEnd(i); });
+      kakao.maps.event.addListener(mk,"rightclick",function(){ if(hasLeader(s)){ s.llat=null; s.llng=null; saveWork(); refresh(i); toast("#"+s.no+" 지시선 해제",1500);} });
+      markers[i]=mk;
+      buildLeader(i);
+      var li=document.createElement("div"); li.className="li"; li.title=s.name;
+      li.innerHTML='<div class="dot" style="background:'+BLUE+'">'+s.no+'</div><div class="nm">'+s.no+'. '+esc(s.name)+'</div>';
+      li.onclick=function(){ focusSite(i,li); };
+      lg.appendChild(li);
+    });
+  }
+
+  // update a single site's marker image + leader after a change
+  function refresh(i){
+    var s=sites[i], lp=labelPos(s);
+    if(markers[i]){ markers[i].setPosition(new kakao.maps.LatLng(lp.lat,lp.lng)); }
+    buildLeader(i);
+  }
+
+  function onDragEnd(i){
+    var s=sites[i], p=markers[i].getPosition(), nlat=p.getLat(), nlng=p.getLng();
+    if(leaderOn){
+      // move the LABEL only; coordinate (dot) stays and line points to it
+      s.llat=nlat; s.llng=nlng;
+    } else {
+      // position adjust: move the true coordinate; carry label offset along
+      var old=labelPos(s), dLat=nlat-old.lat, dLng=nlng-old.lng;
+      s.lat+=dLat; s.lng+=dLng;
+      if(s.llat!=null){ s.llat+=dLat; s.llng+=dLng; }
+    }
+    saveWork(); buildLeader(i);
+    toast("#"+s.no+(leaderOn?" 라벨 위치 저장":" 위치 저장")+"됨",1400);
+  }
+
+  function focusSite(i,li){
+    var s=sites[i];
+    map.setCenter(new kakao.maps.LatLng(s.lat,s.lng)); map.setLevel(2);
+    if(hotIdx>=0 && markers[hotIdx]){ markers[hotIdx].setImage(markerImage(sites[hotIdx].no,BLUE,false)); markers[hotIdx].setZIndex(2); }
+    document.querySelectorAll(".li.hot").forEach(function(e){e.classList.remove("hot")});
+    if(showNums && markers[i]){ markers[i].setImage(markerImage(s.no,HILITE,false)); markers[i].setZIndex(100); }
+    if(li) li.classList.add("hot");
+    hotIdx=i;
+    toast("#"+s.no+" "+s.name,2200);
+  }
+
+  function fitAll(){ if(!sites.length) return;
+    var b=new kakao.maps.LatLngBounds(); sites.forEach(function(s){b.extend(new kakao.maps.LatLng(s.lat,s.lng))}); map.setBounds(b); }
+
+  function saveWork(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(sites)); }catch(e){} }
+
+  function setType(mode){
+    ["tNormal","tHybrid","tSky"].forEach(function(id){$(id).classList.remove("on")});
+    if(mode==="normal"){ map.setMapTypeId(kakao.maps.MapTypeId.ROADMAP); $("tNormal").classList.add("on"); }
+    else if(mode==="sky"){ map.setMapTypeId(kakao.maps.MapTypeId.SKYVIEW); $("tSky").classList.add("on"); }
+    else { map.setMapTypeId(kakao.maps.MapTypeId.HYBRID); $("tHybrid").classList.add("on"); }
+  }
+
+  /* ---- parsing ---- */
+  function parseInput(txt){
+    txt=(txt||"").trim(); if(!txt) return [];
+    if(txt.charCodeAt(0)===0x50 && txt.charCodeAt(1)===0x4B) throw new Error("KMZ(압축) 파일입니다. 마이맵에서 KML로 내보내 주세요.");
+    if(txt.indexOf("<")===0 || txt.indexOf("<kml")>=0 || txt.indexOf("<Placemark")>=0) return parseKML(txt);
+    if(txt.indexOf("[")===0 || txt.indexOf("{")===0) return parseJSON(txt);
+    return parseCSV(txt);
+  }
+  function textOf(el){ return el ? (el.textContent||"").trim() : ""; }
+  function nameFromExtended(pm){
+    // prefer Data/SimpleData whose key hints a name
+    var hints=/이름|명칭|구조물|시설|name|title/i, first="";
+    var ds=pm.getElementsByTagName("Data");
+    for(var i=0;i<ds.length;i++){ var k=ds[i].getAttribute("name")||""; var v=textOf(ds[i].getElementsByTagName("value")[0]);
+      if(v){ if(hints.test(k)) return v; if(!first) first=v; } }
+    var sd=pm.getElementsByTagName("SimpleData");
+    for(var j=0;j<sd.length;j++){ var k2=sd[j].getAttribute("name")||""; var v2=textOf(sd[j]);
+      if(v2){ if(hints.test(k2)) return v2; if(!first) first=v2; } }
+    return first;
+  }
+  function parseKML(txt){
+    var out=[], doc=new DOMParser().parseFromString(txt,"text/xml");
+    var pms=doc.getElementsByTagName("Placemark");
+    for(var i=0;i<pms.length;i++){
+      var pt=pms[i].getElementsByTagName("Point")[0]; if(!pt) continue;
+      var co=pms[i].getElementsByTagName("coordinates")[0]; if(!co) continue;
+      var parts=textOf(co).split(/[,\s]+/); var lng=parseFloat(parts[0]), lat=parseFloat(parts[1]);
+      if(isNaN(lat)||isNaN(lng)) continue;
+      // name: direct <name>, else ExtendedData, else description
+      var nm="";
+      for(var c=0;c<pms[i].childNodes.length;c++){ var ch=pms[i].childNodes[c];
+        if(ch.nodeType===1 && ch.tagName==="name"){ nm=(ch.textContent||"").trim(); break; } }
+      if(!nm) nm=nameFromExtended(pms[i]);
+      if(!nm) nm=textOf(pms[i].getElementsByTagName("description")[0]).split(/\n/)[0];
+      if(!nm) nm="구조물 "+(out.length+1);
+      out.push({name:nm,type:guessType(nm),lat:lat,lng:lng});
+    }
+    return out;
+  }
+  function parseJSON(txt){ var arr=JSON.parse(txt); if(!Array.isArray(arr)) return [];
+    return arr.map(function(o){return {name:o.name||"구조물",type:o.type||guessType(o.name||""),lat:+o.lat,lng:+o.lng};})
+      .filter(function(o){return !isNaN(o.lat)&&!isNaN(o.lng);}); }
+  function parseCSV(txt){
+    var lines=txt.split(/\r?\n/).filter(function(l){return l.trim()});
+    return parseAOA(lines.map(function(l){return splitCsv(l);}));
+  }
+  function parseAOA(aoa){
+    if(!aoa || !aoa.length) return [];
+    var iName=1,iLat=-1,iLng=-1,iType=-1,start=0;
+    var head=aoa[0].map(function(x){return String(x==null?"":x).trim().toLowerCase()});
+    var hasHeader=head.some(function(c){return /name|이름|위도|경도|lat|l(n|o)g|구조물|명칭|시설물/.test(c)});
+    if(hasHeader){
+      head.forEach(function(c,idx){
+        if(/시설물|구조물|이름|명칭|name/.test(c)) iName=idx;
+        else if(/위도|lat/.test(c)) iLat=idx;
+        else if(/경도|lng|lon/.test(c)) iLng=idx;
+        else if(/구분|종류|type/.test(c)) iType=idx;
+      });
+      start=1;
+    }
+    if(iLat<0||iLng<0){ iName=(iName<0?0:iName); iLat=1; iLng=2; } // fallback: 이름,위도,경도
+    var out=[];
+    for(var r=start;r<aoa.length;r++){
+      var c=aoa[r]; if(!c) continue;
+      var lat=parseFloat(c[iLat]), lng=parseFloat(c[iLng]);
+      if(isNaN(lat)||isNaN(lng)) continue;
+      if(lat>90||lat<33){ var t=lat;lat=lng;lng=t; }
+      var nm=String(c[iName]==null?"":c[iName]).trim()||"구조물";
+      var ty=iType>=0?String(c[iType]==null?"":c[iType]).trim():""; if(!ty) ty=guessType(nm);
+      out.push({name:nm,type:ty,lat:lat,lng:lng});
+    }
+    return out;
+  }
+  function ensureXLSX(cb){
+    if(window.XLSX) return cb();
+    var s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload=cb; s.onerror=function(){ toast("엑셀 라이브러리 로드 실패(인터넷 확인)",6000); };
+    document.head.appendChild(s);
+  }
+  function parseXlsx(buf,cb){
+    ensureXLSX(function(){
+      try{
+        var wb=XLSX.read(new Uint8Array(buf),{type:"array"});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var aoa=XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false});
+        cb(parseAOA(aoa));
+      }catch(e){ toast("엑셀 파싱 실패: "+e.message,6000); }
+    });
+  }
+  function splitCsv(line){ var r=[],cur="",q=false; for(var i=0;i<line.length;i++){var ch=line[i];
+    if(ch==='"'){q=!q;} else if(ch===","&&!q){r.push(cur);cur="";} else cur+=ch;} r.push(cur);
+    return r.map(function(s){return s.replace(/^"|"$/g,"")}); }
+  function guessType(nm){ nm=nm||"";
+    if(/터널/.test(nm)) return "터널"; if(/고가/.test(nm)) return "고가";
+    if(/지하차도|지하도/.test(nm)) return "지하차도"; if(/교|대교|육교|교량/.test(nm)) return "교량"; return "기타"; }
+
+  function applyImport(arr,label){
+    if(!arr.length){ toast("좌표를 찾지 못했습니다. 형식을 확인하세요.",5000); return; }
+    arr.forEach(function(o,i){o.no=i+1;}); sites=arr; hotIdx=-1; saveWork(); render(); fitAll();
+    $("importSheet").classList.remove("show"); toast((label||"")+arr.length+"개 구조물을 불러왔습니다.",3500);
+  }
+
+  /* ---- export ---- */
+  function toCsv(){ var rows=["no,name,type,lat,lng"];
+    sites.forEach(function(s){ rows.push([s.no,'"'+String(s.name).replace(/"/g,'""')+'"',s.type||"",(+s.lat).toFixed(6),(+s.lng).toFixed(6)].join(",")); });
+    return rows.join("\n"); }
+  function toKml(){ var pm=sites.map(function(s){
+      return '  <Placemark><name>'+esc(s.no+". "+s.name)+'</name><Point><coordinates>'+(+s.lng).toFixed(6)+','+(+s.lat).toFixed(6)+',0</coordinates></Point></Placemark>'; }).join("\n");
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>\n'+pm+'\n</Document></kml>'; }
+  function download(name,text,mime){ var b=new Blob(["\uFEFF"+text],{type:mime||"text/plain;charset=utf-8"});
+    var a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+
+  function bindUI(){
+    $("tNormal").onclick=function(){setType("normal")};
+    $("tHybrid").onclick=function(){setType("hybrid")};
+    $("tSky").onclick=function(){setType("sky")};
+    $("fitBtn").onclick=fitAll;
+    $("numBtn").onclick=function(){ showNums=!showNums;
+      markers.forEach(function(m){m&&m.setMap(showNums?map:null)});
+      dots.forEach(function(d){d&&d.setMap(showNums?map:null)});
+      lines.forEach(function(l){ if(l){ l.setMap(showNums?map:null); if(l._over) l._over.setMap(showNums?map:null); } });
+      this.textContent="번호: "+(showNums?"표시":"숨김"); this.classList.toggle("on",showNums); };
+    $("dragBtn").onclick=function(){ dragOn=!dragOn; if(dragOn){ leaderOn=false; syncLeaderBtn(); }
+      markers.forEach(function(m){m&&m.setDraggable(showNums&&(dragOn||leaderOn))});
+      this.textContent="위치조정: "+(dragOn?"켬":"끔"); this.classList.toggle("on",dragOn); };
+    $("leaderBtn").onclick=function(){ leaderOn=!leaderOn; if(leaderOn){ dragOn=false; syncDragBtn(); }
+      markers.forEach(function(m){m&&m.setDraggable(showNums&&(dragOn||leaderOn))});
+      syncLeaderBtn();
+      toast(leaderOn?"지시선 모드 — 번호를 한산한 곳으로 드래그 (우클릭=해제)":"지시선 모드 끔",4000); };
+
+    $("cleanBtn").onclick=function(){ document.body.classList.add("clean");
+      var el=document.documentElement; var rq=el.requestFullscreen||el.webkitRequestFullscreen;
+      if(rq){ try{ var r=rq.call(el); if(r&&r.catch) r.catch(function(){}); }catch(e){} } };
+    $("capexit").onclick=exitClean;
+    document.addEventListener("keydown",function(e){ if(e.key==="Escape") exitClean(); });
+    document.addEventListener("fullscreenchange",function(){ if(!document.fullscreenElement) document.body.classList.remove("clean"); });
+    document.addEventListener("webkitfullscreenchange",function(){ if(!document.webkitFullscreenElement) document.body.classList.remove("clean"); });
+
+    $("importBtn").onclick=function(){ $("importSheet").classList.add("show"); };
+    $("importCancel").onclick=function(){ $("importSheet").classList.remove("show"); };
+    $("importDo").onclick=function(){ try{ applyImport(parseInput($("importText").value),"붙여넣기: "); }catch(e){ toast(e.message,6000); } };
+    $("pickFile").onclick=function(){ $("fileInput").click(); };
+    $("fileInput").onchange=function(){ var f=this.files[0]; if(!f) return; $("fileName").textContent=f.name;
+      var rd=new FileReader();
+      if(/\.xlsx?$/i.test(f.name)){
+        rd.onload=function(){ parseXlsx(rd.result,function(arr){ applyImport(arr,f.name+": "); }); };
+        rd.readAsArrayBuffer(f);
+      } else {
+        rd.onload=function(){ try{ applyImport(parseInput(String(rd.result)),f.name+": "); }catch(e){ toast(e.message,6000);} };
+        rd.readAsText(f,"UTF-8");
+      }
+      this.value=""; };
+    $("resetDefault").onclick=function(){ sites=SAMPLE.slice(); hotIdx=-1; saveWork(); render(); fitAll();
+      $("importSheet").classList.remove("show"); toast("기본 47개 데이터로 초기화했습니다.",3000); };
+
+    $("exportBtn").onclick=function(){ $("exportText").value=toCsv(); $("exportSheet").classList.add("show"); };
+    $("exportClose").onclick=function(){ $("exportSheet").classList.remove("show"); };
+    $("dlCsv").onclick=function(){ download("시설물_위치.csv",toCsv(),"text/csv;charset=utf-8"); };
+    $("dlKml").onclick=function(){ download("시설물_위치.kml",toKml(),"application/vnd.google-earth.kml+xml"); };
+    $("copyJson").onclick=function(){ if(navigator.clipboard) navigator.clipboard.writeText(JSON.stringify(sites,null,2)).then(function(){toast("JSON 복사됨",1800)}); };
+  }
+  function syncDragBtn(){ var b=$("dragBtn"); b.textContent="위치조정: "+(dragOn?"켬":"끔"); b.classList.toggle("on",dragOn); }
+  function syncLeaderBtn(){ var b=$("leaderBtn"); b.textContent="지시선: "+(leaderOn?"켬":"끔"); b.classList.toggle("on",leaderOn); }
+  function exitClean(){ document.body.classList.remove("clean");
+    var ex=document.exitFullscreen||document.webkitExitFullscreen;
+    if(ex && (document.fullscreenElement||document.webkitFullscreenElement)){ try{ var r=ex.call(document); if(r&&r.catch) r.catch(function(){}); }catch(e){} } }
+
+  load();
+})();
+</script>
+</body>
+</html>
