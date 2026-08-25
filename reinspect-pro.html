@@ -115,7 +115,7 @@
   <div style="display:flex;align-items:stretch;background:var(--paper);border-bottom:1px solid var(--line);flex:0 0 auto">
     <button id="idxBtn" style="flex:0 0 auto;border:0;background:var(--navy);color:#fff;font-weight:800;padding:0 14px;font-size:.85rem;font-family:var(--sans)">☰ 색인</button>
     <button id="quickBtn" style="flex:0 0 auto;border:0;background:var(--amber);color:#fff;font-weight:800;padding:0 14px;font-size:.85rem;font-family:var(--sans)">⚡ 빠른배치</button>
-    <div id="pageBar" style="border-bottom:0"></div>
+    <div id="pageBar" style="border-bottom:0;flex:1 1 auto;min-width:0"></div>
   </div>
   <div id="canvasWrap">
     <canvas id="cv"></canvas>
@@ -568,7 +568,8 @@ function renderPageBar(){
     b.onclick=()=>{gotoPage(i);};
     bar.appendChild(b);
   });
-  const on=bar.querySelector('.on'); if(on)on.scrollIntoView({inline:'center'});
+  const on=bar.querySelector('.on');
+  if(on) bar.scrollLeft = on.offsetLeft - bar.clientWidth/2 + on.offsetWidth/2;
 }
 function gotoPage(i){curPage=i;renderPageBar();loadPageBitmap();}
 function pageStats(p){
