@@ -112,12 +112,15 @@
 </div>
 
 <div class="view on" id="v-map">
-  <div id="pageBar"></div>
+  <div style="display:flex;align-items:stretch;background:var(--paper);border-bottom:1px solid var(--line);flex:0 0 auto">
+    <button id="idxBtn" style="flex:0 0 auto;border:0;background:var(--navy);color:#fff;font-weight:800;padding:0 14px;font-size:.85rem;font-family:var(--sans)">☰ 색인</button>
+    <div id="pageBar" style="border-bottom:0"></div>
+  </div>
   <div id="canvasWrap">
     <canvas id="cv"></canvas>
     <div id="mapEmpty">망도 이미지가 없습니다.<br>[자료] 탭에서 <b>망도 이미지 불러오기</b>로<br>FMS 캡쳐(PNG) 또는 망도 PDF를 추가하세요.</div>
     <div id="placeBanner"></div>
-    <div id="mapHint">핀 탭=상세 · 길게 누름=신규 손상 · 두 손가락=확대</div>
+    <div id="mapHint">빨강=할 것 · 흰색=완료 · 주황=신규 | 핀 탭=상세 · 길게=신규 · 두 손가락=확대</div>
   </div>
 </div>
 
@@ -167,6 +170,16 @@
       <button data-j="진전">진전</button><button data-j="유지">유지</button><button data-j="보수완료">보수완료</button>
       <button data-j="신규">신규</button><button data-j="기타">기타</button>
     </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px" id="qtyRow">
+      <div style="flex:1"><div style="font-size:.62rem;font-weight:800;color:var(--muted);margin-bottom:2px">폭(㎜)</div>
+        <input id="q폭" inputmode="decimal" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:.9rem;font-family:var(--sans)"></div>
+      <div style="flex:1"><div style="font-size:.62rem;font-weight:800;color:var(--muted);margin-bottom:2px">너비(m)</div>
+        <input id="q너비" inputmode="decimal" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:.9rem;font-family:var(--sans)"></div>
+      <div style="flex:1"><div style="font-size:.62rem;font-weight:800;color:var(--muted);margin-bottom:2px">길이(m)</div>
+        <input id="q길이" inputmode="decimal" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:.9rem;font-family:var(--sans)"></div>
+      <div style="flex:1"><div style="font-size:.62rem;font-weight:800;color:var(--muted);margin-bottom:2px">개소</div>
+        <input id="q개소" inputmode="numeric" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:.9rem;font-family:var(--sans)"></div>
+    </div>
     <textarea id="shMemo" placeholder="메모 (진전량, 특이사항...)"></textarea>
     <div class="btnrow">
       <button class="btn" id="btnPin">📍 핀 배치</button>
@@ -185,6 +198,16 @@
   <button class="shootGo" id="vwShoot">이 구도로 촬영 →</button>
 </div>
 
+<div id="pageIndex" style="position:fixed;inset:0;z-index:25;background:#0008;display:none">
+  <div style="position:absolute;left:0;right:0;bottom:0;top:12%;background:var(--paper);border-radius:18px 18px 0 0;display:flex;flex-direction:column">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px">
+      <b style="font-size:.95rem">도면 색인</b>
+      <input id="idxQ" placeholder="도면명 검색" style="flex:1;padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-size:.88rem;font-family:var(--sans)">
+      <button id="idxClose" style="border:0;background:none;font-size:1.1rem;font-weight:800;color:var(--muted)">✕</button>
+    </div>
+    <div id="idxList" style="flex:1;overflow-y:auto;padding:10px"></div>
+  </div>
+</div>
 <div id="toast"></div>
 <input type="file" id="fSet" accept=".json,application/json">
 <input type="file" id="fPages" accept="image/*,.pdf,application/pdf" multiple>
@@ -289,6 +312,16 @@ let S={교량:'',기준회차:'',pages:[],slots:[]};   // slots:{id,grp,num,labe
 let curPage=0, curSlot=null, placing=null, filter='전체', expGroup='전체', query='';
 const saveState=()=>put('kv','state',JSON.stringify(S)).then(refreshMeta);
 const uid=()=>'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function parseQty(label){
+  const q={폭:'',너비:'',길이:'',개소:''};
+  if(!label)return q;
+  let m=label.match(/cw\s*=\s*([\d.~\-]+)/i); if(m)q.폭=m[1];
+  m=label.match(/L\s*=\s*([\d.]+)\s*m/i); if(m)q.길이=m[1];
+  m=label.match(/([\d.]+)\s*[x×*]\s*([\d.]+)/); if(m){q.너비=m[1];q.길이=q.길이||m[2];}
+  m=label.match(/([\d.]+)\s*EA/i); if(m)q.개소=m[1];
+  m=label.match(/([\d.]+)\s*개소/); if(m)q.개소=m[1];
+  return q;
+}
 
 /* ================= 가져오기 ================= */
 async function importSetText(txt){
@@ -300,7 +333,8 @@ async function importSetText(txt){
   for(const s of j.slots){
     const id='p'+(i++);
     S.slots.push({id, grp:s.grp||'외관조사', num:s.num||'', label:s.label||'',
-      extra:s['prev비고']||s.note||'', pin:null, 판정:'', 메모:'', added:false, shot:false});
+      extra:s['prev비고']||s.note||'', pin:s.pin||null, 물량:s.물량||parseQty(s.label||''),
+      판정:'', 메모:'', added:false, shot:false});
     if(s.ref){ const b=await (await fetch(s.ref)).blob(); await put('img','ref:'+id,b); }
   }
   await saveState();
@@ -379,9 +413,11 @@ function draw(){
     if(!s.pin||s.pin.page!==pageId)return;
     const x=s.pin.x*bmp.width, y=s.pin.y*bmp.height;
     ctx.beginPath();ctx.arc(x,y,r,0,7);
-    ctx.fillStyle=s.added?'#c98a12':(s.shot?'#0f9d58':'#c0392b');
-    ctx.fill();ctx.lineWidth=2/T.s*devicePixelRatio;ctx.strokeStyle='#fff';ctx.stroke();
-    ctx.fillStyle='#fff';ctx.font=`bold ${fs}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    const done=s.shot;
+    ctx.fillStyle=done?'#ffffff':(s.added?'#c98a12':'#c0392b');
+    ctx.fill();ctx.lineWidth=2/T.s*devicePixelRatio;
+    ctx.strokeStyle=done?(s.added?'#c98a12':'#1f3a5f'):'#fff';ctx.stroke();
+    ctx.fillStyle=done?'#1f3a5f':'#fff';ctx.font=`bold ${fs}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(pinNo(s), x, y);
   });
 }
@@ -467,6 +503,7 @@ function longPress(px,py){
   const id=uid();
   const n=S.slots.filter(x=>x.added).length+1;
   S.slots.push({id,grp:'외관조사',num:'신규-'+String(n).padStart(3,'0'),label:'',extra:'',
+    물량:{폭:'',너비:'',길이:'',개소:''},
     pin:{page:S.pages[curPage].id,x:p.x,y:p.y},판정:'신규',메모:'',added:true,shot:false});
   saveState();draw();openSheet(id);
   toast('신규 손상 추가 — 촬영·메모를 입력하세요',2600);
@@ -485,8 +522,35 @@ function renderPageBar(){
   S.pages.forEach((p,i)=>{
     const b=document.createElement('button');b.textContent=p.name;
     if(i===curPage)b.classList.add('on');
-    b.onclick=()=>{curPage=i;renderPageBar();loadPageBitmap();};
+    b.onclick=()=>{gotoPage(i);};
     bar.appendChild(b);
+  });
+  const on=bar.querySelector('.on'); if(on)on.scrollIntoView({inline:'center'});
+}
+function gotoPage(i){curPage=i;renderPageBar();loadPageBitmap();}
+function pageStats(p){
+  let todo=0,done=0;
+  for(const s of S.slots){ if(s.pin&&s.pin.page===p.id){ (s.shot?done++:todo++); } }
+  return {todo,done};
+}
+$('idxBtn').onclick=()=>{renderIndex();$('pageIndex').style.display='block';};
+$('idxClose').onclick=()=>$('pageIndex').style.display='none';
+$('pageIndex').addEventListener('click',e=>{if(e.target.id==='pageIndex')$('pageIndex').style.display='none';});
+$('idxQ').addEventListener('input',renderIndex);
+function renderIndex(){
+  const q=($('idxQ').value||'').toLowerCase();
+  const el=$('idxList');el.innerHTML='';
+  S.pages.forEach((p,i)=>{
+    if(q&&!p.name.toLowerCase().includes(q))return;
+    const st=pageStats(p);
+    const d=document.createElement('div');
+    d.style.cssText='display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px'+(i===curPage?';background:var(--soft)':'');
+    d.innerHTML=`<b style="flex:1;font-size:.9rem">${esc(p.name)}</b>
+      ${st.todo?`<span class="chip warn">할 것 ${st.todo}</span>`:''}
+      ${st.done?`<span class="chip ok">완료 ${st.done}</span>`:''}
+      ${(!st.todo&&!st.done)?'<span class="chip">핀 없음</span>':''}`;
+    d.onclick=()=>{$('pageIndex').style.display='none';gotoPage(i);};
+    el.appendChild(d);
   });
 }
 
@@ -547,6 +611,8 @@ async function openSheet(id){
   $('shNum').textContent=(s.num||s.grp)+(s.extra?' · 전차비고: '+s.extra:'');
   $('shLabel').textContent=s.label||'(라벨 없음 — 신규 손상이면 메모에 내용을 적으세요)';
   $('shMemo').value=s.메모||'';
+  const q=s.물량||{};
+  $('q폭').value=q.폭||'';$('q너비').value=q.너비||'';$('q길이').value=q.길이||'';$('q개소').value=q.개소||'';
   $('btnDelSlot').style.display=s.added?'block':'none';
   $('btnPin').textContent=s.pin?'📍 핀 이동':'📍 핀 배치';
   for(const b of $('segJudge').children)b.classList.toggle('on',b.dataset.j===s.판정);
@@ -565,7 +631,9 @@ $('btnCloseSheet').onclick=closeSheet;
 $('sheet').addEventListener('click',e=>{if(e.target.id==='sheet')closeSheet();});
 function closeSheet(){
   const s=S.slots.find(x=>x.id===curSlot);
-  if(s){s.메모=$('shMemo').value;saveState();}
+  if(s){s.메모=$('shMemo').value;
+    s.물량={폭:$('q폭').value.trim(),너비:$('q너비').value.trim(),길이:$('q길이').value.trim(),개소:$('q개소').value.trim()};
+    saveState();}
   $('sheet').classList.remove('show');renderList();draw();
 }
 $('segJudge').addEventListener('click',e=>{
@@ -655,7 +723,7 @@ function fieldJSON(){
     내보낸때:new Date().toISOString(),
     pages:S.pages.map(p=>p.name),
     slots:S.slots.map(s=>({id:s.id,grp:s.grp,num:s.num,label:s.label,extra:s.extra,
-      pin:s.pin,판정:s.판정,메모:s.메모,added:s.added,shot:s.shot}))},null,1);
+      물량:s.물량,pin:s.pin,판정:s.판정,메모:s.메모,added:s.added,shot:s.shot}))},null,1);
 }
 function download(name,blob){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
