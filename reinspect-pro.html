@@ -412,10 +412,11 @@ async function sheetTitle(pg){ // 표제란에서 '96 교각 P5' 형식 이름 �
     i=k-1;
   }
   let best=null,bd=1e9;
+  const maxD=Math.max(170, lblNo.sz*14);   // 대형 도면(실측 좌표)도 커버
   for(const r of numRuns){
     if(!/^\d{2,3}$/.test(r.s))continue;
     const d=dist(r,lblNo);
-    if(d<170&&d<bd){bd=d;best=r;}
+    if(d<maxD&&d<bd){bd=d;best=r;}
   }
   if(!best)return '';
   const num=parseInt(best.s,10);
@@ -430,7 +431,7 @@ async function sheetTitle(pg){ // 표제란에서 '96 교각 P5' 형식 이름 �
       const t=((it.x-lblNm.x)*vx+(it.y-lblNm.y)*vy)/L2;
       if(t<=0.03||t>=0.97)return false;
       const px=lblNm.x+vx*t, py=lblNm.y+vy*t;
-      return Math.hypot(it.x-px,it.y-py)<25;
+      return Math.hypot(it.x-px,it.y-py)<Math.max(25, lblNm.sz*3);
     }).map(it=>({it,t:((it.x-lblNm.x)*vx+(it.y-lblNm.y)*vy)/L2}))
       .sort((a,b)=>a.t-b.t);
     let out='',prev=null;
@@ -441,6 +442,13 @@ async function sheetTitle(pg){ // 표제란에서 '96 교각 P5' 형식 이름 �
     title=out.replace(/\s+/g,' ').trim();
   }
   return title?`${num} ${title}`:`도면${num}`;
+}
+async function coverTitle(pg){ // 간지·표지: 텍스트가 몇 개뿐이면 그걸 이름으로
+  const tc=await pg.getTextContent();
+  const it=tc.items.map(x=>(x.str||'').trim()).filter(Boolean);
+  if(!it.length||it.length>6)return '';
+  const t=it.join(' ').replace(/\s+/g,' ').trim();
+  return (t.length>=2&&t.length<=26)?('§ '+t):'';
 }
 async function importPdf(f){
   if(typeof pdfjsLib==='undefined'){toast('PDF 모듈 로드 실패');return 0;}
@@ -460,7 +468,11 @@ async function importPdf(f){
     const blob=await new Promise(r=>c.toBlob(r,'image/png'));
     const id='g'+uid();
     let name=base+'-'+String(p).padStart(3,'0');
-    try{ const t=await sheetTitle(pg); if(t) name=t; }catch(e){}
+    try{
+      const t=await sheetTitle(pg);
+      if(t) name=t;
+      else{ const c=await coverTitle(pg); if(c) name=c; }
+    }catch(e){}
     if(S.pages.some(x=>x.name===name)) name+=` (p${p})`;   // 목차 등 중복 이름 구분
     S.pages.push({id,name});
     await put('img','page:'+id,blob);
