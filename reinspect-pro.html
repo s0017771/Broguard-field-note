@@ -380,6 +380,38 @@ async function importPages(files){
   reconcilePins();
   await saveState(); renderPageBar(); loadPageBitmap(); toast(`망도 ${added}장 추가됨`,2600);
 }
+async function sheetTitle(pg){ // 표제란에서 '96 교각 P5' 형식 이름 생성
+  const tc=await pg.getTextContent();
+  const items=tc.items.map(it=>({s:(it.str||'').trim(),x:it.transform[4],y:it.transform[5]}))
+                      .filter(it=>it.s);
+  const lblNo=items.find(it=>it.s.replace(/\s/g,'')==='도면번호');
+  if(!lblNo)return '';
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  // 도면번호 값: 라벨에서 가장 가까운 2~3자리 숫자
+  let best=null,bd=1e9;
+  for(const it of items){
+    if(!/^\d{2,3}$/.test(it.s))continue;
+    const d=dist(it,lblNo);
+    if(d<160&&d<bd){bd=d;best=it;}
+  }
+  if(!best)return '';
+  const num=parseInt(best.s,10);
+  // 도면명 값: '도면명' 라벨과 '도면번호' 라벨 사이의 텍스트
+  const lblNm=items.find(it=>it.s.replace(/\s/g,'')==='도면명');
+  let title='';
+  if(lblNm){
+    const vx=lblNo.x-lblNm.x, vy=lblNo.y-lblNm.y, L2=vx*vx+vy*vy||1;
+    const mid=items.filter(it=>{
+      if(it===lblNm||it===lblNo||it===best)return false;
+      const t=((it.x-lblNm.x)*vx+(it.y-lblNm.y)*vy)/L2;
+      if(t<=0.02||t>=0.98)return false;
+      const px=lblNm.x+vx*t, py=lblNm.y+vy*t;
+      return Math.hypot(it.x-px,it.y-py)<25;
+    }).sort((a,b)=>((a.x-lblNm.x)*vx+(a.y-lblNm.y)*vy)-((b.x-lblNm.x)*vx+(b.y-lblNm.y)*vy));
+    title=mid.map(it=>it.s).join(' ').trim();
+  }
+  return title?`${num} ${title}`:`도면${num}`;
+}
 async function importPdf(f){
   if(typeof pdfjsLib==='undefined'){toast('PDF 모듈 로드 실패');return 0;}
   pdfjsLib.GlobalWorkerOptions.workerSrc='';
@@ -397,7 +429,10 @@ async function importPdf(f){
     await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
     const blob=await new Promise(r=>c.toBlob(r,'image/png'));
     const id='g'+uid();
-    S.pages.push({id,name:base+'-'+String(p).padStart(3,'0')});
+    let name=base+'-'+String(p).padStart(3,'0');
+    try{ const t=await sheetTitle(pg); if(t) name=t; }catch(e){}
+    if(S.pages.some(x=>x.name===name)) name+=` (p${p})`;   // 목차 등 중복 이름 구분
+    S.pages.push({id,name});
     await put('img','page:'+id,blob);
     toast(`PDF 변환 중... (${p}/${n})`,60000);
     if(p%5===0)await saveState();
