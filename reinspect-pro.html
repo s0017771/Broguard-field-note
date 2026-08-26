@@ -193,6 +193,7 @@
     <textarea id="shMemo" placeholder="메모 (진전량, 특이사항...)"></textarea>
     <div class="btnrow">
       <button class="btn" id="btnPin">📍 핀 배치</button>
+      <button class="btn" id="btnUnpin">핀 해제</button>
       <button class="btn" id="btnDelNow">사진 삭제</button>
       <button class="btn danger" id="btnDelSlot" style="display:none">슬롯 삭제</button>
       <button class="btn" id="btnCloseSheet">닫기</button>
@@ -661,6 +662,7 @@ async function openSheet(id){
   $('q폭').value=q.폭||'';$('q너비').value=q.너비||'';$('q길이').value=q.길이||'';$('q개소').value=q.개소||'';
   $('btnDelSlot').style.display=s.added?'block':'none';
   $('btnPin').textContent=s.pin?'📍 핀 이동':'📍 핀 배치';
+  $('btnUnpin').style.display=s.pin?'block':'none';
   for(const b of $('segJudge').children)b.classList.toggle('on',b.dataset.j===s.판정);
   // 사진
   for(const[key,el]of[['ref:','phRef'],['now:','phNow']]){
@@ -689,6 +691,13 @@ $('segJudge').addEventListener('click',e=>{
   for(const x of $('segJudge').children)x.classList.toggle('on',x.dataset.j===s.판정);
   saveState();
 });
+let unpinArm=0;
+$('btnUnpin').onclick=()=>{
+  const s=S.slots.find(x=>x.id===curSlot);
+  if(!s||!s.pin){toast('배치된 핀이 없어요');return;}
+  if(Date.now()-unpinArm>2500){unpinArm=Date.now();toast('한 번 더 누르면 핀이 해제됩니다 (빠른배치 대상으로 복귀)');return;}
+  s.pin=null;saveState();draw();openSheet(curSlot);toast('핀 해제됨 — 빠른배치에 다시 나타납니다');
+};
 $('btnPin').onclick=()=>{const s=S.slots.find(x=>x.id===curSlot);
   $('sheet').classList.remove('show');
   setPlacing(curSlot,s?(s.num||s.grp):'');};
