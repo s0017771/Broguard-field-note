@@ -151,6 +151,7 @@
     <div class="card"><h3>내보내기</h3>
       <button class="btn amber" id="btnExpJson">야장 JSON 내보내기 (핀·판정·메모, 사진 제외)</button>
       <button class="btn amber" id="btnExpZip">사진 ZIP 내보내기 (야장 + 금회 사진)</button>
+      <button class="btn" id="btnExpSet">완성 세트 내보내기 (전차사진+핀 포함 — 다음 회차용 마스터)</button>
       <div class="prog" id="zipProg"><i></i></div>
       <div class="meta">사진은 원본 화질 그대로 담깁니다. 용량이 크면 그룹별로 나눠 내보내세요.</div>
       <div class="seg" style="margin-top:8px">
@@ -887,6 +888,29 @@ function download(name,blob){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
   document.body.appendChild(a);a.click();a.remove();
 }
+$('btnExpSet').onclick=async()=>{
+  if(!S.slots.length){toast('내보낼 세트가 없어요');return;}
+  toast('완성 세트 만드는 중...',30000);
+  const blob2uri=b=>new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(b);});
+  const pageIdx=id=>{const i=S.pages.findIndex(p=>p.id===id);return i>=0?i:null;};
+  const slots=[];
+  for(const s of S.slots){
+    const o={grp:s.grp,num:s.num,label:s.label};
+    if(s.grp==='전경'){o.note=s.extra||'';}
+    else{o['prev비고']=s.extra||'';o.위치=s.위치||'';o.부재=s.부재||'';o.도면=s.도면||'';o.연번=s.연번||'';o.물량=s.물량||null;}
+    if(s.pin){
+      const pi=(s.pin.pageIndex!=null)?s.pin.pageIndex:pageIdx(s.pin.page);
+      if(pi!=null)o.pin={pageIndex:pi,x:s.pin.x,y:s.pin.y};
+    }
+    const b=await get('img','ref:'+s.id);
+    o.ref=b?await blob2uri(b):null;
+    slots.push(o);
+  }
+  const out={교량:S.교량,기준회차:S.기준회차,v:3,도면정보:S.도면정보||undefined,slots};
+  const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+  download((S.교량||'교량')+'_전차세트_완성_'+today()+'.json',blob);
+  toast(`완성 세트 저장: 슬롯 ${slots.length} · 핀 ${slots.filter(x=>x.pin).length} · ${(blob.size/1048576).toFixed(1)}MB`,4000);
+};
 $('btnExpJson').onclick=()=>{
   download((S.교량||'교량')+'_정밀야장_'+today()+'.json',new Blob([fieldJSON()],{type:'application/json'}));
   toast('야장 JSON 저장됨 (다운로드 폴더)');
