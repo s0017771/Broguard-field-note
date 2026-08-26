@@ -344,6 +344,7 @@ async function importSetText(txt){
     const id='p'+(i++);
     S.slots.push({id, grp:s.grp||'외관조사', num:s.num||'', label:s.label||'',
       extra:s['prev비고']||s.note||'', pin:s.pin||null, 물량:s.물량||parseQty(s.label||''),
+      도면:s.도면||'', 연번:s.연번||'', 위치:s.위치||'', 부재:s.부재||'',
       판정:'', 메모:'', added:false, shot:false});
     if(s.ref){ const b=await (await fetch(s.ref)).blob(); await put('img','ref:'+id,b); }
   }
@@ -527,8 +528,9 @@ async function quickShow(){
   const t=quickTargets();
   if(!t.length){ quickEnd(); toast('🎉 모든 손상 핀 배치 완료!',3000); return; }
   const s=t[0]; placing=s.id;
-  $('qbNum').textContent=(s.num||'')+`  (남은 ${t.length}개)`;
-  $('qbLabel').textContent=s.label||'';
+  const loc=(s.도면?`📍 도면${s.도면}${s.연번?'의 '+s.연번+'번':''} · `:'');
+  $('qbNum').textContent=loc+(s.num||'')+`  (남은 ${t.length}개)`;
+  $('qbLabel').textContent=[s.위치,s.부재,s.label].filter(Boolean).join(' · ')||s.label||'';
   $('qbThumb').removeAttribute('src');
   $('quickBar').style.display='flex';
   const b=await get('img','ref:'+s.id);
@@ -652,7 +654,7 @@ $('q').addEventListener('input',e=>{query=e.target.value.trim();renderList();});
 /* ================= 상세 시트 ================= */
 async function openSheet(id){
   curSlot=id;const s=S.slots.find(x=>x.id===id);if(!s)return;
-  $('shNum').textContent=(s.num||s.grp)+(s.extra?' · 전차비고: '+s.extra:'');
+  $('shNum').textContent=(s.도면?`도면${s.도면}${s.연번?'의 '+s.연번+'번':''} · `:'')+(s.num||s.grp)+(s.extra?' · 전차비고: '+s.extra:'');
   $('shLabel').textContent=s.label||'(라벨 없음 — 신규 손상이면 메모에 내용을 적으세요)';
   $('shMemo').value=s.메모||'';
   const q=s.물량||{};
@@ -767,6 +769,7 @@ function fieldJSON(){
     내보낸때:new Date().toISOString(),
     pages:S.pages.map(p=>p.name),
     slots:S.slots.map(s=>({id:s.id,grp:s.grp,num:s.num,label:s.label,extra:s.extra,
+      도면:s.도면,연번:s.연번,위치:s.위치,부재:s.부재,
       물량:s.물량,pin:s.pin,판정:s.판정,메모:s.메모,added:s.added,shot:s.shot}))},null,1);
 }
 function download(name,blob){
