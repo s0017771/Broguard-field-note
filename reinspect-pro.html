@@ -322,6 +322,16 @@ function imgKeys(){return new Promise((res)=>{const r=idb.transaction('img').obj
 let S={교량:'',기준회차:'',pages:[],slots:[]};   // slots:{id,grp,num,label,extra,pin,판정,메모,added,shot}
 let curPage=0, curSlot=null, placing=null, filter='전체', expGroup='전체', query='';
 const saveState=()=>put('kv','state',JSON.stringify(S)).then(refreshMeta);
+function reconcilePins(){ // 자동배치 세트의 pin.pageIndex → 불러온 망도 페이지 id로 해석
+  let n=0;
+  for(const s of S.slots){
+    if(s.pin && !s.pin.page && s.pin.pageIndex!=null && S.pages[s.pin.pageIndex]){
+      s.pin.page=S.pages[s.pin.pageIndex].id; n++;
+    }
+  }
+  if(n)toast(`자동 배치 핀 ${n}개가 망도에 연결됐습니다 ✓`,3000);
+  return n;
+}
 const uid=()=>'s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function parseQty(label){
   const q={폭:'',너비:'',길이:'',개소:''};
@@ -349,6 +359,7 @@ async function importSetText(txt){
       판정:'', 메모:'', added:false, shot:false});
     if(s.ref){ const b=await (await fetch(s.ref)).blob(); await put('img','ref:'+id,b); }
   }
+  reconcilePins();
   await saveState();
   renderAll();
   toast(`전차세트 불러옴: ${S.slots.length}개 슬롯 (전경 ${S.slots.filter(x=>x.grp==='전경').length} · 외관조사 ${S.slots.filter(x=>x.grp==='외관조사').length})`,3200);
@@ -366,6 +377,7 @@ async function importPages(files){
       added++;
     }
   }
+  reconcilePins();
   await saveState(); renderPageBar(); loadPageBitmap(); toast(`망도 ${added}장 추가됨`,2600);
 }
 async function importPdf(f){
