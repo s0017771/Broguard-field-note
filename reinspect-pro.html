@@ -876,13 +876,18 @@ $('fResume').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!
     toast('야장 재개: 판정·메모·핀 복원됨 (사진은 이 기기 저장분 유지)',3500);}
   catch(err){toast('재개 실패: '+err.message,4000);}};
 
+function pinOut(p){
+  if(!p)return null;
+  let pi=(p.pageIndex!=null)?p.pageIndex:S.pages.findIndex(x=>x.id===p.page);
+  return {pageIndex:(pi>=0?pi:null), x:p.x, y:p.y};
+}
 function fieldJSON(){
   return JSON.stringify({교량:S.교량,기준회차:S.기준회차,조사구분:'정밀점검(금회)',
     내보낸때:new Date().toISOString(),
     pages:S.pages.map(p=>p.name),
     slots:S.slots.map(s=>({id:s.id,grp:s.grp,num:s.num,label:s.label,extra:s.extra,
       도면:s.도면,연번:s.연번,위치:s.위치,부재:s.부재,
-      물량:s.물량,pin:s.pin,판정:s.판정,메모:s.메모,added:s.added,shot:s.shot}))},null,1);
+      물량:s.물량,pin:pinOut(s.pin),판정:s.판정,메모:s.메모,added:s.added,shot:s.shot}))},null,1);
 }
 function download(name,blob){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
