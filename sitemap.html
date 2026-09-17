@@ -74,6 +74,9 @@
 
 <div id="ctrl">
   <div class="row">
+    <select id="projSel" class="btn" style="font-family:inherit;max-width:290px"></select>
+  </div>
+  <div class="row">
     <button class="btn" id="tNormal">일반</button>
     <button class="btn on" id="tHybrid">위성+라벨</button>
     <button class="btn" id="tSky">위성</button>
@@ -101,7 +104,7 @@
     <p class="muted">붙여넣기는 KML·CSV·JSON만 됩니다(엑셀은 파일로). ※ 지도 이름은 <b>KML이 아니라 이 엑셀</b>이 정확합니다.</p>
     <div class="actions" style="justify-content:flex-start">
       <button class="btn pri" id="pickFile">파일 선택</button>
-      <button class="btn" id="resetDefault">기본(47개)로 초기화</button>
+      <button class="btn" id="resetDefault">이 프로젝트 기본값으로 초기화</button>
       <span id="fileName" class="muted" style="align-self:center"></span>
     </div>
     <textarea id="importText" placeholder="또는 여기에 KML / CSV / JSON 붙여넣기" style="margin-top:10px"></textarea>
@@ -131,7 +134,22 @@
 <script>
 /* ===== CONFIG ===== */
 var KAKAO_JS_KEY = "ce35f31f5c6402bd5a16dbbf84adebac";
-var STORAGE_KEY  = "broguard_sites_v2";
+var LEGACY_KEY = "broguard_sites_v2";           // 구버전(고양 47) 저장 키 — 자동 이관
+var PROJ_KEY   = "broguard_proj";                // 마지막 선택 프로젝트
+function skey(pid){ return "broguard_sites_v3::"+pid; }
+function tkey(pid){ return "broguard_title_v3::"+pid; }
+
+// ※ 김포 좌표는 지번 기준 근사값 — 위성지도에서 [위치조정]으로 드래그해 확정하세요
+var GIMPO = [
+  {no:1, name:"계양천교(상)", type:"교량", lat:37.6296, lng:126.7160},
+  {no:2, name:"계양천교(하)", type:"교량", lat:37.6329, lng:126.7127},
+  {no:3, name:"나진옹교",     type:"교량", lat:37.6537, lng:126.6837},
+  {no:4, name:"감정1교",      type:"교량", lat:37.6218, lng:126.6998},
+  {no:5, name:"다락교",       type:"교량", lat:37.6404, lng:126.6126},
+  {no:6, name:"황금산단교",   type:"교량", lat:37.5987, lng:126.6355},
+  {no:7, name:"대보천교",     type:"교량", lat:37.6053, lng:126.7683},
+  {no:8, name:"풍곡육교",     type:"육교", lat:37.5889, lng:126.7714}
+];
 var SAMPLE = [
   {no:1, name:"신원교", type:"교량", lat:37.677927, lng:126.882824},
   {no:2, name:"신원지하차도", type:"지하차도", lat:37.664997, lng:126.891186},
@@ -181,6 +199,11 @@ var SAMPLE = [
   {no:46, name:"꽃마을교", type:"교량", lat:37.658, lng:126.8366},
   {no:47, name:"상곡4교", type:"교량", lat:37.723621, lng:126.907605}
 ];
+var PROJECTS = [
+  {id:"goyang47",   name:"고양시 정기점검 (47개소)",                      preset:SAMPLE},
+  {id:"gimpo26h2",  name:"2026 하반기 정밀안전점검(교량) 김포시 (8개소)",  preset:GIMPO}
+];
+var CUR = localStorage.getItem(PROJ_KEY) || "goyang47";
 /* ================= */
 
 (function(){
@@ -204,10 +227,12 @@ var SAMPLE = [
     map=new kakao.maps.Map($("map"),{center:new kakao.maps.LatLng(37.702,126.762),level:6});
     setType("hybrid");
     map.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
-    var saved=null; try{ var raw=localStorage.getItem(STORAGE_KEY); if(raw) saved=JSON.parse(raw); }catch(e){}
-    if(saved && saved.length){ sites=saved; toast("저장된 조정 내용을 불러왔습니다 ("+sites.length+"개)",3500); }
-    else sites=SAMPLE.slice();
-    render(); fitAll(); bindUI();
+    // 구버전 저장분(고양 47) 자동 이관
+    try{ var legacy=localStorage.getItem(LEGACY_KEY);
+      if(legacy && !localStorage.getItem(skey("goyang47"))){
+        localStorage.setItem(skey("goyang47"), legacy); }
+    }catch(e){}
+    buildProjSel(); loadProject(CUR, true); bindUI();
   }
 
   function pin(n,color,big){
@@ -303,7 +328,29 @@ var SAMPLE = [
   function fitAll(){ if(!sites.length) return;
     var b=new kakao.maps.LatLngBounds(); sites.forEach(function(s){b.extend(new kakao.maps.LatLng(s.lat,s.lng))}); map.setBounds(b); }
 
-  function saveWork(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(sites)); }catch(e){} }
+  function saveWork(){ try{ localStorage.setItem(skey(CUR), JSON.stringify(sites)); }catch(e){} }
+  function projOf(id){ for(var i=0;i<PROJECTS.length;i++) if(PROJECTS[i].id===id) return PROJECTS[i]; return PROJECTS[0]; }
+  function buildProjSel(){
+    var sel=$("projSel"); sel.innerHTML="";
+    PROJECTS.forEach(function(p){ var o=document.createElement("option");
+      o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
+    sel.value=CUR;
+    sel.onchange=function(){ saveWork(); loadProject(sel.value, false); };
+  }
+  function loadProject(pid, quiet){
+    CUR=pid; try{ localStorage.setItem(PROJ_KEY,pid); }catch(e){}
+    var p=projOf(pid), saved=null;
+    try{ var raw=localStorage.getItem(skey(pid)); if(raw) saved=JSON.parse(raw); }catch(e){}
+    sites=(saved&&saved.length)?saved:p.preset.slice();
+    var t=null; try{ t=localStorage.getItem(tkey(pid)); }catch(e){}
+    $("titleBar").textContent=t||p.name;
+    hotIdx=-1; render(); fitAll();
+    if(!quiet) toast(p.name+(saved?" — 저장분 불러옴":" — 기본값 (위치조정으로 확정하세요)"),3200);
+    else if(saved) toast("저장된 조정 내용을 불러왔습니다 ("+sites.length+"개)",3000);
+  }
+  $("titleBar").addEventListener("blur",function(){
+    try{ localStorage.setItem(tkey(CUR), $("titleBar").textContent.trim()); }catch(e){}
+  });
 
   function setType(mode){
     ["tNormal","tHybrid","tSky"].forEach(function(id){$(id).classList.remove("on")});
@@ -465,8 +512,9 @@ var SAMPLE = [
         rd.readAsText(f,"UTF-8");
       }
       this.value=""; };
-    $("resetDefault").onclick=function(){ sites=SAMPLE.slice(); hotIdx=-1; saveWork(); render(); fitAll();
-      $("importSheet").classList.remove("show"); toast("기본 47개 데이터로 초기화했습니다.",3000); };
+    $("resetDefault").onclick=function(){ var p=projOf(CUR);
+      sites=p.preset.slice(); hotIdx=-1; saveWork(); render(); fitAll();
+      $("importSheet").classList.remove("show"); toast(p.name+" 기본값("+sites.length+"개)으로 초기화했습니다.",3000); };
 
     $("exportBtn").onclick=function(){ $("exportText").value=toCsv(); $("exportSheet").classList.add("show"); };
     $("exportClose").onclick=function(){ $("exportSheet").classList.remove("show"); };
