@@ -62,6 +62,7 @@
     font-size:.92rem;color:var(--ink);margin-bottom:8px;text-align:center;font-family:var(--sans)}
   .btn.pri{background:var(--steel);color:#fff;border-color:transparent}
   .btn.amber{background:var(--amber);color:#fff;border-color:transparent}
+  .syin{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;font-family:var(--sans);margin-bottom:6px;box-sizing:border-box}
   .btn.danger{color:var(--red)}
   .meta{font-size:.76rem;color:var(--muted);line-height:1.6}
   .prog{height:8px;background:var(--soft);border-radius:5px;overflow:hidden;margin-top:8px;display:none}
@@ -130,7 +131,7 @@
       <button id="qbSkip" style="flex:0 0 auto;border:0;background:#ffffff2e;color:#fff;border-radius:8px;padding:9px 12px;font-weight:800;font-family:var(--sans)">건너뜀</button>
       <button id="qbStop" style="flex:0 0 auto;border:0;background:#c0392b;color:#fff;border-radius:8px;padding:9px 12px;font-weight:800;font-family:var(--sans)">종료</button>
     </div>
-    <div id="mapHint">빨강=할 것 · 흰색=완료 · 주황=신규 | 핀 탭=상세 · 길게=신규 · 두 손가락=확대</div>
+    <div id="mapHint">빨강=할 것 · 흰색=완료 · 노랑=재검토 · 주황=신규 | 핀 탭=상세 · 길게=신규 · 두 손가락=확대</div>
   </div>
 </div>
 
@@ -158,6 +159,14 @@
         <button class="on" data-g="전체">전체</button><button data-g="전경">전경</button>
         <button data-g="외관조사">외관조사</button><button data-g="신규">신규</button>
       </div>
+    </div>
+    <div class="card"><h3>☁ 팀 동기화 (같은 교량 공동조사)</h3>
+      <input class="syin" id="syKey" placeholder="Firebase apiKey (최초 1회 입력)" autocomplete="off">
+      <input class="syin" id="syPid" placeholder="Firebase projectId (최초 1회 입력)" autocomplete="off">
+      <input class="syin" id="syRoom" placeholder="공유코드 — 팀원 모두 동일하게 (예: 계양천상-1010)" autocomplete="off">
+      <input class="syin" id="syName" placeholder="내 이름 (예: 박)" autocomplete="off">
+      <button class="btn pri" id="syBtn">동기화 시작</button>
+      <div class="meta" id="syStat">꺼짐 — 켜면 핀 상태(촬영·재검토·판정·핀·신규)만 15초마다 공유됩니다. 사진은 공유되지 않습니다.</div>
     </div>
     <div class="card"><h3>저장 상태</h3>
       <div class="meta" id="storeInfo">-</div>
@@ -605,7 +614,7 @@ function tap(px,py){
     const p=toImg(px,py);
     if(p.x<0||p.x>1||p.y<0||p.y>1){toast('도면 안쪽을 탭하세요');return;}
     const s=S.slots.find(x=>x.id===placing);
-    if(s){s.pin={page:S.pages[curPage].id,x:p.x,y:p.y};saveState();draw();
+    if(s){s.pin={page:S.pages[curPage].id,x:p.x,y:p.y};touch(s);saveState();draw();
       toast((s.num||'슬롯')+' 핀 배치됨 ✓',1200);}
     if(quick){ quickShow(); } else { setPlacing(null); }
     return;
@@ -622,7 +631,7 @@ function longPress(px,py){
   const n=S.slots.filter(x=>x.added).length+1;
   S.slots.push({id,grp:'외관조사',num:'신규-'+String(n).padStart(3,'0'),label:'',extra:'',
     물량:{폭:'',너비:'',길이:'',개소:''},
-    pin:{page:S.pages[curPage].id,x:p.x,y:p.y},판정:'신규',메모:'',added:true,shot:false});
+    pin:{page:S.pages[curPage].id,x:p.x,y:p.y},판정:'신규',메모:'',added:true,shot:false,ts:Date.now(),tsrc:'me'});
   saveState();draw();openSheet(id);
   toast('신규 손상 추가 — 촬영·메모를 입력하세요',2600);
 }
@@ -736,7 +745,7 @@ async function renderList(){
     const d=document.createElement('div');d.className='row';
     const chips=[];
     if(s.added)chips.push('<span class="chip new">신규</span>');
-    chips.push(s.shot?'<span class="chip ok">촬영✓</span>':'<span class="chip warn">미촬영</span>');
+    chips.push(s.shot?(s.원격촬영?'<span class="chip ok">동료✓</span>':'<span class="chip ok">촬영✓</span>'):'<span class="chip warn">미촬영</span>');
     if(s.재검토)chips.push('<span class="chip new">재검토</span>');
     if(s.grp!=='전경')chips.push(s.pin?'<span class="chip ok">핀✓</span>':'<span class="chip warn">핀없음</span>');
     if(s.판정)chips.push('<span class="chip">'+s.판정+'</span>');
@@ -782,14 +791,17 @@ async function openSheet(id){
       ph.appendChild(img);ph.querySelector('.none').style.display='none';
       img.onclick=()=>openViewer(img.src,(key==='ref:'?'전차':'금회')+' · '+(s.num||s.grp),false);}
   }
+  $('phNow').querySelector('.none').textContent=(s.shot&&s.원격촬영)?'동료가 촬영함 ✓ (사진은 동료 기기에)':'미촬영';
   $('sheet').classList.add('show');
 }
 $('btnCloseSheet').onclick=closeSheet;
 $('sheet').addEventListener('click',e=>{if(e.target.id==='sheet')closeSheet();});
 function closeSheet(){
   const s=S.slots.find(x=>x.id===curSlot);
-  if(s){s.메모=$('shMemo').value;
-    s.물량={폭:$('q폭').value.trim(),너비:$('q너비').value.trim(),길이:$('q길이').value.trim(),개소:$('q개소').value.trim()};
+  if(s){const nm=$('shMemo').value,
+    nq={폭:$('q폭').value.trim(),너비:$('q너비').value.trim(),길이:$('q길이').value.trim(),개소:$('q개소').value.trim()};
+    if(s.added&&(nm!==(s.메모||'')||JSON.stringify(nq)!==JSON.stringify(s.물량||{})))touch(s);
+    s.메모=nm;s.물량=nq;
     saveState();}
   $('sheet').classList.remove('show');renderList();draw();
 }
@@ -798,11 +810,11 @@ $('segJudge').addEventListener('click',e=>{
   const s=S.slots.find(x=>x.id===curSlot);if(!s)return;
   s.판정=(s.판정===b.dataset.j)?'':b.dataset.j;
   for(const x of $('segJudge').children)x.classList.toggle('on',x.dataset.j===s.판정);
-  saveState();
+  touch(s);saveState();
 });
 $('btnRecheck').onclick=()=>{
   const s=S.slots.find(x=>x.id===curSlot);if(!s)return;
-  s.재검토=!s.재검토;saveState();draw();openSheet(curSlot);
+  s.재검토=!s.재검토;touch(s);saveState();draw();openSheet(curSlot);
   toast(s.재검토?'재검토 표시 — 핀이 노란색으로 남습니다. 새로 촬영하면 자동 해제돼요':'재검토 해제됨');
 };
 let unpinArm=0;
@@ -810,14 +822,14 @@ $('btnUnpin').onclick=()=>{
   const s=S.slots.find(x=>x.id===curSlot);
   if(!s||!s.pin){toast('배치된 핀이 없어요');return;}
   if(Date.now()-unpinArm>2500){unpinArm=Date.now();toast('한 번 더 누르면 핀이 해제됩니다 (빠른배치 대상으로 복귀)');return;}
-  s.pin=null;saveState();draw();openSheet(curSlot);toast('핀 해제됨 — 빠른배치에 다시 나타납니다');
+  s.pin=null;touch(s);saveState();draw();openSheet(curSlot);toast('핀 해제됨 — 빠른배치에 다시 나타납니다');
 };
 $('btnPin').onclick=()=>{const s=S.slots.find(x=>x.id===curSlot);
   $('sheet').classList.remove('show');
   setPlacing(curSlot,s?(s.num||s.grp):'');};
 $('btnDelNow').onclick=async()=>{
   const s=S.slots.find(x=>x.id===curSlot);if(!s||!s.shot){toast('삭제할 금회 사진이 없어요');return;}
-  await del('img','now:'+curSlot);s.shot=false;saveState();openSheet(curSlot);toast('금회 사진 삭제됨');};
+  await del('img','now:'+curSlot);s.shot=false;s.원격촬영=false;touch(s);saveState();openSheet(curSlot);toast('금회 사진 삭제됨');};
 let delArm=0;
 $('btnDelSlot').onclick=async()=>{
   if(Date.now()-delArm>2500){delArm=Date.now();toast('한 번 더 누르면 슬롯이 삭제됩니다');return;}
@@ -835,7 +847,7 @@ $('vwShoot').onclick=()=>{closeViewer();$('fShot').click();};
 $('fShot').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f||!curSlot)return;
   await put('img','now:'+curSlot,f);
-  const s=S.slots.find(x=>x.id===curSlot);if(s){s.shot=true;s.재검토=false;saveState();}
+  const s=S.slots.find(x=>x.id===curSlot);if(s){s.shot=true;s.원격촬영=false;s.재검토=false;touch(s);saveState();}
   openSheet(curSlot);toast('금회 사진 저장 ✓ ('+Math.round(f.size/1024)+'KB)');
 };
 
@@ -898,7 +910,7 @@ function fieldJSON(){
     pages:S.pages.map(p=>p.name),
     slots:S.slots.map(s=>({id:s.id,grp:s.grp,num:s.num,label:s.label,extra:s.extra,
       도면:s.도면,연번:s.연번,위치:s.위치,부재:s.부재,
-      물량:s.물량,pin:pinOut(s.pin),판정:s.판정,메모:s.메모,added:s.added,shot:s.shot,재검토:!!s.재검토}))},null,1);
+      물량:s.물량,pin:pinOut(s.pin),판정:s.판정,메모:s.메모,added:s.added,shot:s.shot,재검토:!!s.재검토,원격촬영:!!s.원격촬영}))},null,1);
 }
 function download(name,blob){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
@@ -939,7 +951,7 @@ document.querySelector('#v-data .seg').addEventListener('click',e=>{
 $('btnExpZip').onclick=async()=>{
   const zip=new JSZip();
   zip.file('야장.json',fieldJSON());
-  const targets=S.slots.filter(s=>s.shot&&(
+  const targets=S.slots.filter(s=>s.shot&&!s.원격촬영&&(
     expGroup==='전체'||(expGroup==='신규'?s.added:(s.grp===expGroup&&(expGroup!=='외관조사'||!s.added)))));
   if(!targets.length){toast('내보낼 금회 사진이 없어요 ('+expGroup+')');return;}
   const prog=$('zipProg');prog.classList.add('b');const bar=prog.firstElementChild;
@@ -963,6 +975,98 @@ $('btnReset').onclick=async()=>{
   await clearAll();S={교량:'',기준회차:'',pages:[],slots:[]};curPage=0;
   renderAll();toast('초기화 완료');
 };
+
+/* ================= ☁ 팀 동기화 (Firestore REST, 상태만 공유) ================= */
+const SY={on:false,key:'',pid:'',room:'',name:'',dev:'',timer:null};
+try{Object.assign(SY,JSON.parse(localStorage.getItem('brg_sync_cfg')||'{}'));}catch(e){}
+SY.on=false;SY.timer=null;
+if(!SY.dev)SY.dev=Math.random().toString(36).slice(2,8);
+function sySaveCfg(){localStorage.setItem('brg_sync_cfg',JSON.stringify({key:SY.key,pid:SY.pid,room:SY.room,name:SY.name,dev:SY.dev}));}
+function touch(s){s.ts=Date.now();s.tsrc='me';}
+function pinIn(p){if(!p||p.pageIndex==null)return null;const pg=S.pages[p.pageIndex];return pg?{page:pg.id,x:p.x,y:p.y}:null;}
+function syDoc(){ // 이 기기에서 발생한 변경만 발신
+  return JSON.stringify({교량:S.교량,slots:S.slots.filter(s=>s.ts&&s.tsrc==='me').map(s=>{
+    const o={id:s.id,ts:s.ts,shot:!!s.shot,재검토:!!s.재검토,판정:s.판정||'',pin:pinOut(s.pin)};
+    if(s.added&&!s.원격추가){o.added=true;o.num=s.num;o.label=s.label;o.메모=s.메모;o.물량=s.물량;}
+    return o;})});
+}
+function syApply(arr){
+  let ch=0;
+  for(const r of (arr||[])){
+    let s=S.slots.find(x=>x.id===r.id);
+    if(!s){
+      if(!r.added)continue;
+      S.slots.push({id:r.id,grp:'외관조사',num:r.num||'신규',label:r.label||'',extra:'',
+        물량:r.물량||{폭:'',너비:'',길이:'',개소:''},pin:pinIn(r.pin),판정:r.판정||'신규',
+        메모:r.메모||'',added:true,원격추가:true,shot:!!r.shot,원격촬영:!!r.shot,
+        재검토:!!r.재검토,ts:r.ts,tsrc:'peer'});
+      ch++;continue;
+    }
+    if((r.ts||0)<=(s.ts||0))continue;
+    const own=s.shot&&!s.원격촬영; // 내 기기에 실제 사진이 있는 슬롯은 보호
+    if(r.shot&&!s.shot){s.shot=true;s.원격촬영=true;}
+    else if(!r.shot&&s.shot&&!own){s.shot=false;s.원격촬영=false;}
+    s.재검토=!!r.재검토;
+    if(r.판정!==undefined)s.판정=r.판정;
+    const np=pinIn(r.pin);if(np)s.pin=np;
+    if(r.added&&!own){if(r.label!==undefined)s.label=r.label;if(r.메모!==undefined)s.메모=r.메모;if(r.물량)s.물량=r.물량;}
+    s.ts=r.ts;s.tsrc='peer';ch++;
+  }
+  return ch;
+}
+function syUrl(sub){return 'https://firestore.googleapis.com/v1/projects/'+encodeURIComponent(SY.pid)+'/databases/(default)/documents/'+sub+(sub.includes('?')?'&':'?')+'key='+encodeURIComponent(SY.key);}
+function roomPath(){return 'brg_sync/'+encodeURIComponent(SY.room)+'/devs';}
+async function syPush(){
+  const body={fields:{data:{stringValue:syDoc()},name:{stringValue:SY.name||SY.dev},at:{integerValue:String(Date.now())}}};
+  const r=await fetch(syUrl(roomPath()+'/'+SY.dev),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('발신 '+r.status);
+}
+async function syPull(){
+  const r=await fetch(syUrl(roomPath()+'?pageSize=30'));
+  if(!r.ok)throw new Error('수신 '+r.status);
+  const j=await r.json();let ch=0,devs=0;
+  for(const d of (j.documents||[])){
+    devs++;
+    if(d.name.split('/').pop()===SY.dev)continue;
+    try{
+      const data=JSON.parse(d.fields.data.stringValue);
+      if(data.교량&&S.교량&&data.교량!==S.교량)continue; // 다른 교량 자료는 무시
+      ch+=syApply(data.slots);
+    }catch(e){}
+  }
+  return {ch,devs};
+}
+let syBusy=false;
+async function syTick(){
+  if(!SY.on||syBusy)return;
+  if(!navigator.onLine){syStat('오프라인 — 신호가 잡히면 자동 재개');return;}
+  syBusy=true;
+  try{
+    await syPush();
+    const {ch,devs}=await syPull();
+    syStat('연결됨 · 기기 '+devs+'대 · '+new Date().toTimeString().slice(0,8));
+    if(ch){saveState();draw();renderList();renderPageBar();toast('☁ 동료 변경 '+ch+'건 반영',1600);}
+  }catch(e){syStat('연결 오류 — 15초 후 재시도 ('+e.message+')');}
+  syBusy=false;
+}
+function syStat(t){$('syStat').textContent=t;}
+function syStart(){
+  SY.key=$('syKey').value.trim();SY.pid=$('syPid').value.trim();
+  SY.room=$('syRoom').value.trim();SY.name=$('syName').value.trim();
+  if(!SY.key||!SY.pid||!SY.room){toast('apiKey · projectId · 공유코드를 입력하세요');return;}
+  sySaveCfg();SY.on=true;
+  $('syBtn').textContent='동기화 중지';$('syBtn').classList.remove('pri');$('syBtn').classList.add('danger');
+  SY.timer=setInterval(syTick,15000);syTick();
+  toast('☁ 팀 동기화 시작 (15초 간격) — 같은 공유코드끼리 공유됩니다',3000);
+}
+function syStop(){
+  SY.on=false;clearInterval(SY.timer);
+  $('syBtn').textContent='동기화 시작';$('syBtn').classList.add('pri');$('syBtn').classList.remove('danger');
+  syStat('중지됨 — 입력값은 저장되어 있습니다');
+}
+$('syBtn').onclick=()=>SY.on?syStop():syStart();
+$('syKey').value=SY.key||'';$('syPid').value=SY.pid||'';$('syRoom').value=SY.room||'';$('syName').value=SY.name||'';
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syTick();});
 
 async function refreshMeta(){
   $('tbBridge').textContent=S.교량?`${S.교량} · 슬롯 ${S.slots.length}`:'자료 없음';
