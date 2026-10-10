@@ -193,6 +193,7 @@
     </div>
     <textarea id="shMemo" placeholder="메모 (진전량, 특이사항...)"></textarea>
     <div class="btnrow">
+      <button class="btn" id="btnRecheck" style="display:none">🔁 재검토 표시</button>
       <button class="btn" id="btnPin">📍 핀 배치</button>
       <button class="btn" id="btnUnpin">핀 해제</button>
       <button class="btn" id="btnDelNow">사진 삭제</button>
@@ -528,11 +529,11 @@ function draw(){
     if(!s.pin||s.pin.page!==pageId)return;
     const x=s.pin.x*bmp.width, y=s.pin.y*bmp.height;
     ctx.beginPath();ctx.arc(x,y,r,0,7);
-    const done=s.shot;
-    ctx.fillStyle=done?'#ffffff':(s.added?'#c98a12':'#c0392b');
+    const re=!!s.재검토, done=s.shot&&!re;
+    ctx.fillStyle=re?'#f1c40f':done?'#ffffff':(s.added?'#c98a12':'#c0392b');
     ctx.fill();ctx.lineWidth=2/T.s*devicePixelRatio;
-    ctx.strokeStyle=done?(s.added?'#c98a12':'#1f3a5f'):'#fff';ctx.stroke();
-    ctx.fillStyle=done?'#1f3a5f':'#fff';ctx.font=`bold ${fs}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.strokeStyle=(re||done)?(s.added?'#c98a12':'#1f3a5f'):'#fff';ctx.stroke();
+    ctx.fillStyle=(re||done)?'#1f3a5f':'#fff';ctx.font=`bold ${fs}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(pinNo(s), x, y);
   });
 }
@@ -680,7 +681,7 @@ function renderPageBar(){
 function gotoPage(i){curPage=i;renderPageBar();loadPageBitmap();}
 function pageStats(p){
   let todo=0,done=0;
-  for(const s of S.slots){ if(s.pin&&s.pin.page===p.id){ (s.shot?done++:todo++); } }
+  for(const s of S.slots){ if(s.pin&&s.pin.page===p.id){ ((s.shot&&!s.재검토)?done++:todo++); } }
   return {todo,done};
 }
 $('idxBtn').onclick=()=>{renderIndex();$('pageIndex').style.display='block';};
@@ -705,7 +706,7 @@ function renderIndex(){
 }
 
 /* ================= 목록 ================= */
-const FILTERS=['전체','전경','외관조사','신규','미촬영','핀없음'];
+const FILTERS=['전체','전경','외관조사','신규','미촬영','재검토','핀없음'];
 function renderFilters(){
   const f=$('filters');f.innerHTML='';
   FILTERS.forEach(name=>{
@@ -720,6 +721,7 @@ function slotPass(s){
   if(filter==='외관조사'&&(s.grp!=='외관조사'||s.added))return false;
   if(filter==='신규'&&!s.added)return false;
   if(filter==='미촬영'&&s.shot)return false;
+  if(filter==='재검토'&&!s.재검토)return false;
   if(filter==='핀없음'&&(s.pin||s.grp==='전경'))return false;
   if(query){const q=query.toLowerCase();
     if(!((s.num||'')+' '+(s.label||'')+' '+(s.메모||'')).toLowerCase().includes(q))return false;}
@@ -735,6 +737,7 @@ async function renderList(){
     const chips=[];
     if(s.added)chips.push('<span class="chip new">신규</span>');
     chips.push(s.shot?'<span class="chip ok">촬영✓</span>':'<span class="chip warn">미촬영</span>');
+    if(s.재검토)chips.push('<span class="chip new">재검토</span>');
     if(s.grp!=='전경')chips.push(s.pin?'<span class="chip ok">핀✓</span>':'<span class="chip warn">핀없음</span>');
     if(s.판정)chips.push('<span class="chip">'+s.판정+'</span>');
     d.innerHTML=`<div class="thumb" data-t="${s.id}"></div>
@@ -766,6 +769,9 @@ async function openSheet(id){
   $('btnDelSlot').style.display=s.added?'block':'none';
   $('btnPin').textContent=s.pin?'📍 핀 이동':'📍 핀 배치';
   $('btnUnpin').style.display=s.pin?'block':'none';
+  $('btnRecheck').style.display=s.shot?'block':'none';
+  $('btnRecheck').textContent=s.재검토?'🔁 재검토 해제':'🔁 재검토 표시';
+  $('btnRecheck').classList.toggle('amber',!!s.재검토);
   for(const b of $('segJudge').children)b.classList.toggle('on',b.dataset.j===s.판정);
   // 사진
   for(const[key,el]of[['ref:','phRef'],['now:','phNow']]){
@@ -794,6 +800,11 @@ $('segJudge').addEventListener('click',e=>{
   for(const x of $('segJudge').children)x.classList.toggle('on',x.dataset.j===s.판정);
   saveState();
 });
+$('btnRecheck').onclick=()=>{
+  const s=S.slots.find(x=>x.id===curSlot);if(!s)return;
+  s.재검토=!s.재검토;saveState();draw();openSheet(curSlot);
+  toast(s.재검토?'재검토 표시 — 핀이 노란색으로 남습니다. 새로 촬영하면 자동 해제돼요':'재검토 해제됨');
+};
 let unpinArm=0;
 $('btnUnpin').onclick=()=>{
   const s=S.slots.find(x=>x.id===curSlot);
@@ -824,7 +835,7 @@ $('vwShoot').onclick=()=>{closeViewer();$('fShot').click();};
 $('fShot').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f||!curSlot)return;
   await put('img','now:'+curSlot,f);
-  const s=S.slots.find(x=>x.id===curSlot);if(s){s.shot=true;saveState();}
+  const s=S.slots.find(x=>x.id===curSlot);if(s){s.shot=true;s.재검토=false;saveState();}
   openSheet(curSlot);toast('금회 사진 저장 ✓ ('+Math.round(f.size/1024)+'KB)');
 };
 
@@ -887,7 +898,7 @@ function fieldJSON(){
     pages:S.pages.map(p=>p.name),
     slots:S.slots.map(s=>({id:s.id,grp:s.grp,num:s.num,label:s.label,extra:s.extra,
       도면:s.도면,연번:s.연번,위치:s.위치,부재:s.부재,
-      물량:s.물량,pin:pinOut(s.pin),판정:s.판정,메모:s.메모,added:s.added,shot:s.shot}))},null,1);
+      물량:s.물량,pin:pinOut(s.pin),판정:s.판정,메모:s.메모,added:s.added,shot:s.shot,재검토:!!s.재검토}))},null,1);
 }
 function download(name,blob){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
