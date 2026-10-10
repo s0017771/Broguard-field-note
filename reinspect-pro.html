@@ -152,7 +152,7 @@
     <div class="card"><h3>내보내기</h3>
       <button class="btn amber" id="btnExpJson">야장 JSON 내보내기 (핀·판정·메모, 사진 제외)</button>
       <button class="btn amber" id="btnExpZip">사진 ZIP 내보내기 (야장 + 금회 사진)</button>
-      <button class="btn" id="btnExpSet">완성 세트 내보내기 (전차사진+핀 포함 — 다음 회차용 마스터)</button>
+      <button class="btn" id="btnExpSet">완성 세트 내보내기 (전차사진+핀+조사상태 — 이 파일 하나로 재개 가능)</button>
       <div class="prog" id="zipProg"><i></i></div>
       <div class="meta">사진은 원본 화질 그대로 담깁니다. 용량이 크면 그룹별로 나눠 내보내세요.</div>
       <div class="seg" style="margin-top:8px">
@@ -378,16 +378,27 @@ async function importSetText(txt){
   let i=0;
   for(const s of j.slots){
     const id='p'+(i++);
+    // 상태포함 세트(앱에서 내보낸 것)면 shot·판정·메모·신규·재검토까지 복원
     S.slots.push({id, grp:s.grp||'외관조사', num:s.num||'', label:s.label||'',
       extra:s['prev비고']||s.note||'', pin:s.pin||null, 물량:s.물량||parseQty(s.label||''),
       도면:s.도면||'', 연번:s.연번||'', 위치:s.위치||'', 부재:s.부재||'',
-      판정:'', 메모:'', added:false, shot:false});
+      판정:s.판정||'', 메모:s.메모||'', added:!!s.added, shot:!!s.shot, 재검토:!!s.재검토});
     if(s.ref){ const b=await (await fetch(s.ref)).blob(); await put('img','ref:'+id,b); }
   }
   reconcilePins(); applySheetInfo();
   await saveState();
   renderAll();
-  toast(`전차세트 불러옴: ${S.slots.length}개 슬롯 (전경 ${S.slots.filter(x=>x.grp==='전경').length} · 외관조사 ${S.slots.filter(x=>x.grp==='외관조사').length})`,3200);
+  const st=S.slots.filter(x=>x.shot).length;
+  toast(`전차세트 불러옴: ${S.slots.length}개 슬롯 (전경 ${S.slots.filter(x=>x.grp==='전경').length} · 외관조사 ${S.slots.filter(x=>x.grp==='외관조사').length})`+(st?` · 촬영상태 ${st}건 복원`:''),3200);
+}
+function looksLikeSet(j){ // 세트=ref(전차사진) 필드 보유 or v 표기, 야장=내보낸때 보유
+  return Array.isArray(j.slots)&&(j.v!=null||j.slots.some(s=>s&&('ref' in s)));
+}
+function resumeYajang(j){
+  if(!j.slots)throw new Error('야장 형식이 아님');
+  S.교량=j.교량||S.교량;S.기준회차=j.기준회차||S.기준회차;
+  S.slots=j.slots;reconcilePins();renderAll();saveState();
+  toast('야장 재개: 판정·메모·핀 복원됨 (사진은 이 기기 저장분 유지)',3500);
 }
 async function importPages(files){
   const arr=[...files].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
@@ -886,18 +897,17 @@ vw.addEventListener('wheel',e=>{e.preventDefault();const k=e.deltaY<0?1.15:0.87;
 /* ================= 자료: 불러오기/내보내기 ================= */
 $('btnLoadSet').onclick=()=>$('fSet').click();
 $('fSet').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
-  try{toast('전차세트 읽는 중...');await importSetText(await f.text());}
+  try{toast('파일 읽는 중...');const txt=await f.text();const j=JSON.parse(txt);
+    if(!looksLikeSet(j)&&j.내보낸때){resumeYajang(j);toast('야장 파일로 인식 — 이어하기로 복원했습니다',3000);}
+    else await importSetText(txt);}
   catch(err){toast('불러오기 실패: '+err.message,4000);}};
 $('btnLoadPages').onclick=()=>$('fPages').click();
 $('fPages').onchange=e=>{if(e.target.files.length)importPages(e.target.files);e.target.value='';};
 $('btnResume').onclick=()=>$('fResume').click();
 $('fResume').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
-  try{const j=JSON.parse(await f.text());
-    if(!j.slots)throw new Error('야장 형식이 아님');
-    // 야장에는 사진이 없으므로 기존 IDB 사진을 유지한 채 상태만 대체
-    S.교량=j.교량||S.교량;S.기준회차=j.기준회차||S.기준회차;
-    S.slots=j.slots;reconcilePins();renderAll();saveState();
-    toast('야장 재개: 판정·메모·핀 복원됨 (사진은 이 기기 저장분 유지)',3500);}
+  try{const txt=await f.text();const j=JSON.parse(txt);
+    if(looksLikeSet(j)){await importSetText(txt);toast('전차세트 파일로 인식 — 세트로 불러왔습니다',3000);}
+    else resumeYajang(j);}
   catch(err){toast('재개 실패: '+err.message,4000);}};
 
 function pinOut(p){
@@ -931,14 +941,16 @@ $('btnExpSet').onclick=async()=>{
       const pi=(s.pin.pageIndex!=null)?s.pin.pageIndex:pageIdx(s.pin.page);
       if(pi!=null)o.pin={pageIndex:pi,x:s.pin.x,y:s.pin.y};
     }
+    // 조사 상태 포함 — 이 세트 하나만 로드하면 핀+진행상황이 그대로 복원됨
+    o.shot=!!s.shot;o.판정=s.판정||'';o.메모=s.메모||'';o.added=!!s.added;o.재검토=!!s.재검토;
     const b=await get('img','ref:'+s.id);
     o.ref=b?await blob2uri(b):null;
     slots.push(o);
   }
-  const out={교량:S.교량,기준회차:S.기준회차,v:3,도면정보:S.도면정보||undefined,slots};
+  const out={교량:S.교량,기준회차:S.기준회차,v:3,상태포함:true,도면정보:S.도면정보||undefined,slots};
   const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
-  download((S.교량||'교량')+'_전차세트_완성_'+today()+'.json',blob);
-  toast(`완성 세트 저장: 슬롯 ${slots.length} · 핀 ${slots.filter(x=>x.pin).length} · ${(blob.size/1048576).toFixed(1)}MB`,4000);
+  download((S.교량||'교량')+'_전차세트_상태포함_'+today()+'.json',blob);
+  toast(`완성 세트 저장(조사상태 포함): 슬롯 ${slots.length} · 핀 ${slots.filter(x=>x.pin).length} · ${(blob.size/1048576).toFixed(1)}MB`,4000);
 };
 $('btnExpJson').onclick=()=>{
   download((S.교량||'교량')+'_정밀야장_'+today()+'.json',new Blob([fieldJSON()],{type:'application/json'}));
