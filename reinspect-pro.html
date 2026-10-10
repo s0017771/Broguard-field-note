@@ -166,6 +166,7 @@
       <input class="syin" id="syRoom" placeholder="공유코드 — 팀원 모두 동일하게 (예: 계양천상-1010)" autocomplete="off">
       <input class="syin" id="syName" placeholder="내 이름 (예: 박)" autocomplete="off">
       <button class="btn pri" id="syBtn">동기화 시작</button>
+      <button class="btn" id="syPushAll">현재 상태 전체 전송 (처음 연결·이전 자료 공유용)</button>
       <div class="meta" id="syStat">꺼짐 — 켜면 핀 상태(촬영·재검토·판정·핀·신규)만 15초마다 공유됩니다. 사진은 공유되지 않습니다.</div>
     </div>
     <div class="card"><h3>저장 상태</h3>
@@ -982,7 +983,9 @@ try{Object.assign(SY,JSON.parse(localStorage.getItem('brg_sync_cfg')||'{}'));}ca
 SY.on=false;SY.timer=null;
 if(!SY.dev)SY.dev=Math.random().toString(36).slice(2,8);
 function sySaveCfg(){localStorage.setItem('brg_sync_cfg',JSON.stringify({key:SY.key,pid:SY.pid,room:SY.room,name:SY.name,dev:SY.dev}));}
-function touch(s){s.ts=Date.now();s.tsrc='me';}
+function touch(s){s.ts=Date.now();s.tsrc='me';
+  if(SY.on){clearTimeout(SY.qt);SY.qt=setTimeout(syTick,2000);} // 변경 2초 후 즉시 발신
+}
 function pinIn(p){if(!p||p.pageIndex==null)return null;const pg=S.pages[p.pageIndex];return pg?{page:pg.id,x:p.x,y:p.y}:null;}
 function syDoc(){ // 이 기기에서 발생한 변경만 발신
   return JSON.stringify({교량:S.교량,slots:S.slots.filter(s=>s.ts&&s.tsrc==='me').map(s=>{
@@ -1065,6 +1068,16 @@ function syStop(){
   syStat('중지됨 — 입력값은 저장되어 있습니다');
 }
 $('syBtn').onclick=()=>SY.on?syStop():syStart();
+let pushAllArm=0;
+$('syPushAll').onclick=async()=>{
+  if(!SY.on){toast('먼저 [동기화 시작]을 눌러 연결하세요');return;}
+  if(Date.now()-pushAllArm>3000){pushAllArm=Date.now();
+    toast('한 번 더 누르면 이 기기의 촬영·판정·재검토 전체를 팀에 전송합니다 (이 기기 기준으로 덮어씀)');return;}
+  let n=0;const t=Date.now();
+  for(const s of S.slots){ if(s.shot||s.재검토||s.판정||s.added){s.ts=t;s.tsrc='me';n++;} }
+  saveState();await syTick();
+  toast('☁ 전체 전송 완료: '+n+'건 — 동료 기기에 곧 반영됩니다',3000);
+};
 $('syKey').value=SY.key||'';$('syPid').value=SY.pid||'';$('syRoom').value=SY.room||'';$('syName').value=SY.name||'';
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syTick();});
 
