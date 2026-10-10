@@ -896,7 +896,7 @@ $('fResume').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!
     if(!j.slots)throw new Error('야장 형식이 아님');
     // 야장에는 사진이 없으므로 기존 IDB 사진을 유지한 채 상태만 대체
     S.교량=j.교량||S.교량;S.기준회차=j.기준회차||S.기준회차;
-    S.slots=j.slots;renderAll();saveState();
+    S.slots=j.slots;reconcilePins();renderAll();saveState();
     toast('야장 재개: 판정·메모·핀 복원됨 (사진은 이 기기 저장분 유지)',3500);}
   catch(err){toast('재개 실패: '+err.message,4000);}};
 
