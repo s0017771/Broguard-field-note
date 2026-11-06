@@ -147,6 +147,7 @@
       <button class="btn pri" id="btnLoadSet">① 전차세트 JSON 불러오기</button>
       <button class="btn pri" id="btnLoadPages">② 망도 불러오기 (이미지·PDF)</button>
       <button class="btn" id="btnResume">야장 JSON 이어하기 (재개)</button>
+      <button class="btn" id="btnImpZip">사진 ZIP 가져오기 (다른 기기 촬영분 복원)</button>
       <div class="meta" id="metaInfo">전차세트를 불러오면 시작합니다.</div>
     </div>
     <div class="card"><h3>내보내기</h3>
@@ -235,6 +236,7 @@
 <input type="file" id="fSet" accept=".json,application/json">
 <input type="file" id="fPages" accept="image/*,.pdf,application/pdf" multiple>
 <input type="file" id="fResume" accept=".json,application/json">
+<input type="file" id="fImpZip" accept=".zip,application/zip">
 <input type="file" id="fShot" accept="image/*" capture="environment">
 
 <script>
@@ -909,6 +911,39 @@ $('fResume').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!
     if(looksLikeSet(j)){await importSetText(txt);toast('전차세트 파일로 인식 — 세트로 불러왔습니다',3000);}
     else resumeYajang(j);}
   catch(err){toast('재개 실패: '+err.message,4000);}};
+$('btnImpZip').onclick=()=>$('fImpZip').click();
+$('fImpZip').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    toast('ZIP 읽는 중... (사진 수에 따라 수십 초)',30000);
+    const zip=await JSZip.loadAsync(f);
+    const yj=zip.file('야장.json');
+    if(yj){
+      const j=JSON.parse(await yj.async('string'));
+      if(S.slots.length&&S.교량&&j.교량&&j.교량!==S.교량)
+        throw new Error(`교량이 다릅니다 (현재 ${S.교량} / ZIP ${j.교량}) — 전체 초기화 후 가져오세요`);
+      resumeYajang(j);
+    }
+    // 사진 복원: ZIP 파일명(sane(num||id))을 슬롯에 매핑
+    const map={};
+    for(const s of S.slots) map[sane(s.num||s.id)]=s.id;
+    let n=0,miss=0;
+    for(const name in zip.files){
+      const ent=zip.files[name];
+      const m=name.match(/^금회사진\/(.+)\.jpe?g$/i);
+      if(!m||ent.dir)continue;
+      const id=map[m[1]];
+      if(!id){miss++;continue;}
+      const blob=await ent.async('blob');
+      await put('img','now:'+id,blob);
+      const s=S.slots.find(x=>x.id===id);
+      if(s){s.shot=true;s.원격촬영=false;}
+      n++;
+    }
+    saveState();renderAll();
+    toast(`ZIP 복원 완료: 사진 ${n}장 저장${miss?' · 이름 매칭 실패 '+miss+'장':''}`,4500);
+  }catch(err){toast('ZIP 가져오기 실패: '+err.message,5000);}
+};
 
 function pinOut(p){
   if(!p)return null;
